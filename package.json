@@ -1,17 +1,37 @@
 {
   "name": "leads-sales-intelligence",
   "version": "0.0.0",
+  "main": "electron/main.cjs",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "serve:ssr:leads-sales-intelligence": "node dist/leads-sales-intelligence/server/server.mjs"
+    "serve:ssr:leads-sales-intelligence": "node dist/leads-sales-intelligence/server/server.mjs",
+    "build:electron": "ng build --configuration=electron && node scripts/fix-electron-base.js",
+    "electron:dev": "npm run build:electron && electron .",
+    "electron:dist": "npm run build:electron && electron-builder"
   },
   "private": true,
   "packageManager": "npm@11.6.2",
+  "build": {
+    "appId": "com.connectist.leads-sales-intelligence",
+    "productName": "Leads Sales Intelligence",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  },
   "dependencies": {
+    "@angular/cdk": "^21.2.9",
     "@angular/common": "^21.2.0",
     "@angular/compiler": "^21.2.0",
     "@angular/core": "^21.2.0",
@@ -20,6 +40,10 @@
     "@angular/platform-server": "^21.2.0",
     "@angular/router": "^21.2.0",
     "@angular/ssr": "^21.2.6",
+    "@ngrx/effects": "^21.1.0",
+    "@ngrx/entity": "^21.1.0",
+    "@ngrx/store": "^21.1.0",
+    "@ngrx/store-devtools": "^21.1.0",
     "express": "^5.1.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
@@ -31,6 +55,8 @@
     "@tailwindcss/postcss": "^4.1.12",
     "@types/express": "^5.0.1",
     "@types/node": "^20.17.19",
+    "electron": "^28.3.3",
+    "electron-builder": "^26.8.1",
     "jsdom": "^28.0.0",
     "postcss": "^8.5.3",
     "prettier": "^3.8.1",

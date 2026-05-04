@@ -42,3 +42,24 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Electron build output
+/release
+/dist-electron
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs
+*.log
+logs/
+
+# OS
+desktop.ini
+$RECYCLE.BIN/
