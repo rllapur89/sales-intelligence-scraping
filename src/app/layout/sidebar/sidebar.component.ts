@@ -19,7 +19,7 @@ import { selectActiveJobs } from '../../core/store/scraping/scraping.selectors';
         <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-lg flex items-center justify-center text-sm font-bold shrink-0">C</div>
         @if (!collapsed()) {
           <div>
-            <div class="text-sm font-bold text-white">Connectist</div>
+            <div class="text-sm font-bold text-white">SalesIntel</div>
             <div class="text-[10px] text-slate-500">Sales Intelligence</div>
           </div>
         }

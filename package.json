@@ -16,7 +16,7 @@
   "private": true,
   "packageManager": "npm@11.6.2",
   "build": {
-    "appId": "com.connectist.leads-sales-intelligence",
+    "appId": "com.salesintel.app",
     "productName": "Leads Sales Intelligence",
     "directories": {
       "output": "release"

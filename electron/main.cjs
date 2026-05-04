@@ -47,7 +47,7 @@ function createTray() {
   tray = new Tray(icon);
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Connectist — Intelligent Sales', enabled: false },
+    { label: 'SalesIntel', enabled: false },
     { type: 'separator' },
     { label: 'Open App', click: () => { mainWindow.show(); mainWindow.focus(); } },
     { type: 'separator' },
@@ -55,7 +55,7 @@ function createTray() {
   ]);
 
   tray.setContextMenu(contextMenu);
-  tray.setToolTip('Connectist Sales Intelligence');
+  tray.setToolTip('SalesIntel');
   tray.on('double-click', () => { mainWindow.show(); mainWindow.focus(); });
 }
 

@@ -43,7 +43,7 @@ A new `electron` configuration added to `angular.json` under `architect.build.co
 ## electron-builder Configuration
 
 - **Target**: `nsis` (Windows standard installer)
-- **AppId**: `com.connectist.leads-sales-intelligence`
+- **AppId**: `com.salesintel.app`
 - **Output**: `release/` directory
 - **Files**: `dist/` + `electron/` + `package.json`
 

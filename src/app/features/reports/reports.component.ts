@@ -254,7 +254,7 @@ export class ReportsComponent implements OnInit {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `connectist-leads-${Date.now()}.csv`;
+    a.download = `salesintel-leads-${Date.now()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }

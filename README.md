@@ -1,4 +1,4 @@
-# Connectist — Intelligent Sales
+# SalesIntel
 
 > Angular 21 + Electron desktop app for sales intelligence with deep web scraping simulation. Built to demonstrate enterprise-grade Angular architecture patterns.
 
