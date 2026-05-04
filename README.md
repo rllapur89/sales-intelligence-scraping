@@ -2,6 +2,12 @@
 
 > Angular 21 + Electron desktop app for sales intelligence with deep web scraping simulation. Built to demonstrate enterprise-grade Angular architecture patterns.
 
+[![GitHub](https://img.shields.io/badge/GitHub-sales--intelligence--scraping-181717?logo=github)](https://github.com/rllapur89/sales-intelligence-scraping)
+![Angular](https://img.shields.io/badge/Angular-21-DD0031?logo=angular)
+![NgRx](https://img.shields.io/badge/NgRx-21-BA2BD2?logo=reactivex)
+![Electron](https://img.shields.io/badge/Electron-28-47848F?logo=electron)
+![Tailwind](https://img.shields.io/badge/Tailwind-4-38BDF8?logo=tailwindcss)
+
 ---
 
 ## Overview
