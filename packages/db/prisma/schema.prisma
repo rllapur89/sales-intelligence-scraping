@@ -1,0 +1,228 @@
+// Leads are COMPANIES with buying signals. No personal data is modelled here on purpose.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  url      = env("DATABASE_URL")
+  provider = "postgresql"
+}
+
+enum SourceKey {
+  GREENHOUSE
+  LEVER
+  HN_HIRING
+  REMOTEOK
+  GITHUB
+  SEC_EDGAR
+  WEBSITE
+}
+
+enum SignalType {
+  HIRING
+  FILING
+  OSS_ACTIVITY
+  FUNDING
+  WEBSITE_TECH
+}
+
+enum PipelineStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  WON
+  LOST
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum SourceHealth {
+  HEALTHY
+  DEGRADED
+  DOWN
+  UNKNOWN
+}
+
+enum CompanySize {
+  STARTUP
+  SMB
+  MID_MARKET
+  ENTERPRISE
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+/// Source configuration and health. Rate-limit values mirror the queue limiter of that source.
+model Source {
+  id                  String       @id @default(cuid())
+  key                 SourceKey    @unique
+  name                String
+  enabled             Boolean      @default(true)
+  config              Json         @default("{}")
+  rateLimitMax        Int          @default(1)
+  rateLimitDurationMs Int          @default(1000)
+  health              SourceHealth @default(UNKNOWN)
+  consecutiveFailures Int          @default(0)
+  lastSuccessAt       DateTime?
+  lastErrorAt         DateTime?
+  lastError           String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  jobs    ScrapingJob[]
+  signals Signal[]
+}
+
+/// Company identity is the normalized domain.
+model Company {
+  id          String       @id @default(cuid())
+  domain      String       @unique
+  name        String
+  industry    String?
+  region      String?
+  size        CompanySize?
+  description String?
+  techHints   String[]     @default([])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  signals Signal[]
+  lead    Lead?
+
+  @@index([industry])
+  @@index([region])
+}
+
+model Signal {
+  id         String     @id @default(cuid())
+  companyId  String
+  type       SignalType
+  sourceId   String
+  /// Stable id inside the source; with sourceId it makes scrapers idempotent.
+  externalId String
+  payload    Json
+  detectedAt DateTime
+  scrapedAt  DateTime
+  createdAt  DateTime   @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  source  Source  @relation(fields: [sourceId], references: [id])
+
+  @@unique([sourceId, externalId])
+  @@index([companyId, detectedAt(sort: Desc)])
+  @@index([type, detectedAt(sort: Desc)])
+}
+
+/// One lead per company. Filter fields are denormalized so the gateway and REST filters stay cheap.
+model Lead {
+  id          String        @id @default(cuid())
+  companyId   String        @unique
+  score       Int           @default(0)
+  stage       PipelineStage @default(NEW)
+  industry    String?
+  region      String?
+  signalTypes SignalType[]  @default([])
+  signalCount Int           @default(0)
+  /// Sequence of the last LeadEvent that touched this lead.
+  seq         BigInt        @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  events  LeadEvent[]
+
+  // Keyset pagination (score desc, id desc) and (updatedAt desc, id desc).
+  @@index([score(sort: Desc), id(sort: Desc)])
+  @@index([updatedAt(sort: Desc), id(sort: Desc)])
+  // REST and gateway filters.
+  @@index([industry, score(sort: Desc)])
+  @@index([region, score(sort: Desc)])
+  @@index([stage])
+  @@index([signalTypes], type: Gin)
+}
+
+/// Append-only change log. `seq` is the monotonically increasing sequence used for resync/replay.
+model LeadEvent {
+  seq         BigInt    @id @default(autoincrement())
+  leadId      String
+  type        String    @default("lead.upserted")
+  /// Full LeadDto snapshot at the time of the event.
+  payload     Json
+  source      SourceKey
+  scrapedAt   DateTime
+  ingestedAt  DateTime
+  publishedAt DateTime?
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, seq(sort: Desc)])
+  @@index([ingestedAt])
+}
+
+model ScrapingJob {
+  id          String    @id @default(cuid())
+  sourceId    String
+  name        String
+  status      JobStatus @default(QUEUED)
+  progress    Int       @default(0)
+  itemsFound  Int       @default(0)
+  /// Number of per-target scrape tasks planned / finished; progress = done/total.
+  tasksTotal  Int       @default(0)
+  tasksDone   Int       @default(0)
+  errorCount  Int       @default(0)
+  errors      Json      @default("[]")
+  params      Json      @default("{}")
+  bullJobId   String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  durationMs  Int?
+  createdAt   DateTime  @default(now())
+
+  source Source @relation(fields: [sourceId], references: [id])
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([sourceId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  passwordHash     String
+  displayName      String
+  role             UserRole @default(USER)
+  refreshTokenHash String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+/// Filter definition per user; empty arrays mean "any".
+model Subscription {
+  id          String       @id @default(cuid())
+  userId      String
+  name        String
+  active      Boolean      @default(true)
+  industries  String[]     @default([])
+  regions     String[]     @default([])
+  signalTypes SignalType[] @default([])
+  minScore    Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([active])
+}

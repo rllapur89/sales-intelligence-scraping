@@ -1,0 +1,33 @@
+{
+  "name": "@leads/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prisma schema, migrations and client shared by apps/api and apps/workers.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "migrate:dev": "dotenv -e ../../.env -- prisma migrate dev",
+    "migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "migrate:status": "dotenv -e ../../.env -- prisma migrate status",
+    "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
+    "test": "echo \"no unit tests in @leads/db (covered by integration tests in phase 2)\""
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3",
+    "tsx": "^4.19.0",
+    "bcryptjs": "^3.0.2",
+    "dotenv-cli": "^8.0.0"
+  }
+}
