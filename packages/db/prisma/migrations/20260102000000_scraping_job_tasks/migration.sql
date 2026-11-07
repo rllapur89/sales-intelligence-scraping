@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "ScrapingJob" ADD COLUMN     "tasksDone" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "tasksTotal" INTEGER NOT NULL DEFAULT 0;
+

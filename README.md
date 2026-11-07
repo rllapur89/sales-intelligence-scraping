@@ -1,477 +1,201 @@
-# SalesIntel
+# SalesIntel — realtime sales intelligence platform
 
-> Angular 21 + Electron desktop app for sales intelligence with deep web scraping simulation. Built to demonstrate enterprise-grade Angular architecture patterns.
+Angular 21 + Electron desktop client, a NestJS API with a Socket.IO gateway, BullMQ workers that
+scrape **public** sources for **companies with buying signals** (hiring, filings, open source
+activity), PostgreSQL for persistence and Redis for queues and fan-out.
 
-[![GitHub](https://img.shields.io/badge/GitHub-sales--intelligence--scraping-181717?logo=github)](https://github.com/rllapur89/sales-intelligence-scraping)
-![Angular](https://img.shields.io/badge/Angular-21-DD0031?logo=angular)
-![NgRx](https://img.shields.io/badge/NgRx-21-BA2BD2?logo=reactivex)
-![Electron](https://img.shields.io/badge/Electron-28-47848F?logo=electron)
-![Tailwind](https://img.shields.io/badge/Tailwind-4-38BDF8?logo=tailwindcss)
+> **Status: phases 1-4 of 6 done.** Six sources are scraped (Greenhouse, Lever, RemoteOK, GitHub, SEC EDGAR,
+> website enrichment), scored, persisted, exposed over authenticated REST and pushed to the desktop client
+> over Socket.IO. Measurement (phase 5) and hardening (phase 6) are not done: see [`docs/TODO.md`](docs/TODO.md)
+> and the [roadmap](#roadmap).
 
----
+Repository: <https://github.com/rllapur89/sales-intelligence-scraping>
 
-## Overview
+## Design goals
 
-A full-featured **Sales Intelligence platform** that simulates deep web scraping, lead management, CRM pipeline, and analytics. All data is procedurally generated — no backend required. The app runs both as a web SPA and as a native desktop application via Electron.
+- Scrapers never block the delivery path; they never write to the DB or talk to clients.
+- One slow source never blocks the others: one queue per source, each with its own limiter and backoff.
+- Updates are batched (~200 ms) and filtered per user before they leave the server.
+- The client stays smooth with tens of thousands of rows (virtual scroll, batched entity upserts).
+- Leads are companies. No personal data (names, personal emails, phones) is collected or stored.
 
----
+## Architecture
 
-## Tech Stack
+```mermaid
+flowchart LR
+  subgraph Sources[Public sources]
+    GH[Greenhouse / Lever]
+    HN[HN Who is hiring]
+    ROK[RemoteOK]
+    GHB[GitHub API]
+    SEC[SEC EDGAR]
+    WEB[Company websites]
+  end
 
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| Framework | Angular (standalone) | 21.2 |
-| State | NgRx (actions + reducers + effects + selectors) | 21.1 |
-| Entity | @ngrx/entity (EntityAdapter) | 21.1 |
-| Virtual Scrolling | @angular/cdk/scrolling | 21.x |
-| Desktop | Electron | 28.x |
-| Styling | Tailwind CSS | 4.x |
-| Reactivity | RxJS | 7.8 |
-| Language | TypeScript | 5.9 |
-| Charts | Inline SVG (no library) | — |
+  subgraph Workers[apps/workers - BullMQ]
+    SQ[(scrape queue per source<br/>limiter + backoff)]
+    IQ[(ingestion queue)]
+    ING[Ingestion processor<br/>normalize, dedupe, enrich, score]
+  end
 
----
+  PG[(PostgreSQL<br/>Company, Signal, Lead,<br/>LeadEvent log)]
+  R[(Redis<br/>pub/sub + adapter)]
 
-## Project Structure
+  subgraph API[apps/api - NestJS]
+    REST[REST + OpenAPI]
+    GW[Socket.IO gateway<br/>batch 200 ms, per-user filters]
+  end
 
-```
-leads-sales-intelligence/
-├── electron/
-│   ├── main.cjs              # Electron main process — BrowserWindow, tray, IPC, memory monitor
-│   └── preload.cjs           # contextBridge API exposed to Angular (electronAPI)
-├── src/
-│   ├── app/
-│   │   ├── core/
-│   │   │   ├── models/
-│   │   │   │   ├── lead.model.ts           # Lead, LeadFilter, BulkSelection (inverted pattern)
-│   │   │   │   ├── scraping-job.model.ts   # ScrapingJob, JobStatus, ScrapingSource
-│   │   │   │   ├── metrics.model.ts        # DashboardMetrics, ChartPoint, ActivityEvent
-│   │   │   │   └── view-state.model.ts     # Discriminated union: idle|loading|loaded|refreshing|error|empty
-│   │   │   ├── services/
-│   │   │   │   ├── mock-data.service.ts    # 1200 leads + 24 jobs — procedural generation
-│   │   │   │   └── connectivity.service.ts # navigator.onLine + online/offline events
-│   │   │   └── store/
-│   │   │       ├── leads/
-│   │   │       │   ├── leads.actions.ts    # createActionGroup — 14 typed events
-│   │   │       │   ├── leads.state.ts      # EntityState<Lead> + leadsAdapter
-│   │   │       │   ├── leads.reducer.ts    # Pure reducer — upsert, filter, selection
-│   │   │       │   ├── leads.selectors.ts  # selectFilteredLeads (memoized), selectBulkSelection
-│   │   │       │   └── leads.effects.ts    # loadLeads, exportLeads (exhaustMap), refreshLead
-│   │   │       ├── scraping/
-│   │   │       │   ├── scraping.actions.ts # createActionGroup — 11 typed events
-│   │   │       │   ├── scraping.state.ts   # EntityState<ScrapingJob> + scrapingAdapter
-│   │   │       │   ├── scraping.reducer.ts # Jobs reducer — start, cancel, retry, progress
-│   │   │       │   ├── scraping.selectors.ts # selectActiveJobs, selectJobSuccessRate
-│   │   │       │   └── scraping.effects.ts # simulateJobProgress — interval(1200) real-time
-│   │   │       └── app.state.ts            # AppState { leads, scraping }
-│   │   ├── layout/
-│   │   │   ├── shell/shell.component.ts    # Root layout — dispatches loadLeads + loadJobs on init
-│   │   │   ├── sidebar/sidebar.component.ts # Collapsible nav — collapsed = signal(false)
-│   │   │   └── header/header.component.ts  # Global search + connectivity badge + user avatar
-│   │   ├── features/
-│   │   │   ├── dashboard/dashboard.component.ts   # KPIs, SVG charts, activity feed (3s interval)
-│   │   │   ├── leads/leads.component.ts           # CDK virtual scroll, bulk selection, detail sidebar
-│   │   │   ├── scraping/scraping.component.ts     # Job monitor, progress bars, new job modal
-│   │   │   ├── pipeline/pipeline.component.ts     # Kanban — 5 stages, move stage actions
-│   │   │   └── reports/reports.component.ts       # SVG line/donut/bar charts, CSV export
-│   │   ├── shared/
-│   │   │   ├── components/
-│   │   │   │   └── status-badge/status-badge.component.ts
-│   │   │   └── pipes/
-│   │   │       └── relative-time.pipe.ts   # "hace 5 min", "2 hours ago"
-│   │   ├── app.routes.ts     # Lazy loading — loadComponent() for all 5 features
-│   │   ├── app.config.ts     # provideStore + provideEffects + withHashLocation
-│   │   └── app.ts            # Root component — just <router-outlet>
-│   ├── styles.css            # Shimmer animation, custom scrollbar, Tailwind base
-│   └── index.html            # Inter + JetBrains Mono fonts
-├── angular.json              # outputMode: static, prerender: false (no SSR — Electron compat)
-└── package.json
+  subgraph Client[apps/desktop - Angular + Electron]
+    STORE[NgRx entity store]
+    GRID[CDK virtual scroll grid]
+  end
+
+  Sources --> SQ
+  SQ -->|raw results| IQ --> ING
+  ING -->|transactional upsert| PG
+  ING -->|lead.upserted + seq| R
+  R --> GW
+  PG --> REST
+  PG -.->|replay on reconnect| GW
+  REST --> STORE
+  GW -->|batches| STORE --> GRID
+  GRID -.->|latency acks| GW
 ```
 
----
+Sequence numbers come from the append-only `LeadEvent` table. A client that reconnects sends its last
+seen `seq`; the server replays the missing deltas from Postgres or tells it to do a full resync.
 
-## NgRx Store Architecture
+## Repository layout
 
-### AppState
+| Path              | Package          | Purpose                                                                            |
+| ----------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| `apps/desktop`    | `@leads/desktop` | Angular + Electron client (moved from the repo root, unchanged)                    |
+| `apps/api`        | `@leads/api`     | NestJS REST + Socket.IO gateway, OpenAPI at `/docs`                                |
+| `apps/workers`    | `@leads/workers` | NestJS standalone app hosting BullMQ processors                                    |
+| `packages/shared` | `@leads/shared`  | Types, DTO interfaces, queue names, socket event contracts (no runtime deps)       |
+| `packages/db`     | `@leads/db`      | Prisma schema, migrations, seed, client. Shared by api and workers (not a 4th app) |
+| `infra/`          | —                | Prometheus and Grafana provisioning                                                |
+| `tools/loadtest`  | —                | Artillery load test (phase 5)                                                      |
 
-```typescript
-interface AppState {
-  leads: LeadsState;
-  scraping: ScrapingState;
-}
-```
+## Run it
 
-### LeadsState
-
-Built on `@ngrx/entity` for O(1) lookups and normalized storage:
-
-```typescript
-interface LeadsState extends EntityState<Lead> {
-  // EntityState provides: ids: string[], entities: Dictionary<Lead>
-  filter: LeadFilter;
-  selectedLeadId: string | null;
-  bulkSelection: { mode: 'include' | 'exclude'; ids: string[] };
-  viewState: ViewState<Lead[]>;
-  loading: boolean;
-}
-```
-
-**Key selectors:**
-
-| Selector | Description |
-|----------|-------------|
-| `selectAllLeads` | All leads from EntityAdapter |
-| `selectFilteredLeads` | Memoized — applies all active filters |
-| `selectSelectedLead` | Full Lead entity for detail sidebar |
-| `selectLeadsLoading` | Boolean loading flag |
-| `selectBulkSelection` | Current inverted selection state |
-| `selectSelectedCount` | Computed count from inverted selection mode |
-
-**Key effects:**
-
-| Effect | RxJS pattern | Description |
-|--------|-------------|-------------|
-| `loadLeads$` | `switchMap` | Loads 1200 leads from MockDataService (600ms delay) |
-| `exportLeads$` | `exhaustMap` | Prevents duplicate exports — ignores clicks while running |
-| `refreshScrapingLead$` | `switchMap` | Cancels previous refresh if new one dispatched |
-
-### ScrapingState
-
-```typescript
-interface ScrapingState extends EntityState<ScrapingJob> {
-  activeTab: 'active' | 'completed' | 'failed';
-  loading: boolean;
-  simulationRunning: boolean;
-}
-```
-
-**Key selectors:**
-
-| Selector | Description |
-|----------|-------------|
-| `selectActiveJobs` | Jobs with status `running` or `queued` |
-| `selectCompletedJobs` | Jobs with status `completed` |
-| `selectFailedJobs` | Jobs with status `failed` |
-| `selectTotalLeadsFound` | Sum of `leadsFound` across all jobs |
-| `selectJobSuccessRate` | `(completed / (completed + failed)) * 100` |
-
-**Key effects:**
-
-| Effect | RxJS pattern | Description |
-|--------|-------------|-------------|
-| `loadJobs$` | `switchMap` | Loads 24 jobs from MockDataService |
-| `simulateJobProgress$` | `interval(1200) + withLatestFrom` | Simulates SignalR real-time updates |
-| `startJob$` | `switchMap` | Creates new job + starts simulation |
-
----
-
-## Data Flow
-
-### Leads Load Cycle
-
-```
-ShellComponent.ngOnInit()
-  → dispatch(LeadsActions.loadLeads())
-  → loadLeads$ effect → timer(600ms) → MockDataService.getLeads()
-  → dispatch(LeadsActions.loadLeadsSuccess({ leads }))
-  → leadsAdapter.setAll(leads, state)
-  → selectFilteredLeads recomputes
-  → leads.component.ts CDK virtual scroll renders
-```
-
-### Search with Debounce
-
-```
-header.component.ts: Subject<string>
-  → debounceTime(300)
-  → distinctUntilChanged()
-  → takeUntilDestroyed()
-  → dispatch(LeadsActions.setFilter({ filter: { search } }))
-  → selectFilteredLeads recomputes (memoized — only if filter ref changed)
-  → Virtual scroll re-renders visible rows only
-```
-
-### Scraping Real-Time Simulation
-
-```
-simulateJobProgress$ effect:
-  interval(1200ms)
-  → withLatestFrom(selectActiveJobs)
-  → MockDataService.updateJobProgress(job) × each active job
-  → dispatch(ScrapingActions.updateJobProgress({ jobs }))
-  → scrapingAdapter.upsertMany(jobs, state)  ← idempotent
-  → selectActiveJobs, selectTotalLeadsFound recompute
-  → Progress bars animate via [style.width]="job.progress + '%'"
-```
-
----
-
-## ViewState Discriminated Union
-
-All async operations use this pattern instead of `isLoading + error + data` booleans:
-
-```typescript
-type ViewState<T> =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'loaded'; data: T; lastUpdated: Date }
-  | { status: 'refreshing'; data: T }
-  | { status: 'error'; error: string; retryable: boolean }
-  | { status: 'empty'; message: string };
-```
-
-In templates:
-```html
-@switch (viewState().status) {
-  @case ('loading') { <app-skeleton /> }
-  @case ('loaded') { <div>{{ viewState().data.length }} items</div> }
-  @case ('error') { <button (click)="retry()">Retry</button> }
-}
-```
-
----
-
-## Inverted Bulk Selection
-
-Supports "select all 1,200 leads" without storing 1,200 IDs in memory:
-
-```typescript
-interface BulkSelection {
-  mode: 'include' | 'exclude';
-  ids: string[];     // IDs that are the EXCEPTION to the mode
-}
-
-// "Select All" → mode: 'exclude', ids: []  (0 exceptions)
-// Deselect one → mode: 'exclude', ids: [deselectedId]
-// Select subset → mode: 'include', ids: [id1, id2, id3]
-```
-
-Computing selected count:
-```typescript
-const count = mode === 'include'
-  ? ids.length
-  : totalLeads - ids.length;
-```
-
----
-
-## CDK Virtual Scrolling
-
-The leads table renders 1,200+ leads with O(1) DOM nodes:
-
-```html
-<cdk-virtual-scroll-viewport itemSize="56" class="h-full">
-  <div *cdkVirtualFor="let lead of filteredLeads(); trackBy: trackByLeadId"
-       class="h-14 flex items-center ...">
-    <!-- Only ~15-20 rows in DOM at any time -->
-  </div>
-</cdk-virtual-scroll-viewport>
-```
-
-- `itemSize="56"` — each row is 56px height (h-14 in Tailwind)
-- `trackBy` — prevents re-creation on data updates
-- `scrolledIndexChange` — used for "load more" patterns
-
----
-
-## Electron Integration
-
-### Security Model
-
-```
-Angular (Renderer) ──── contextBridge ──── Main Process
-     window.electronAPI                      Node.js APIs
-```
-
-- `nodeIntegration: false` — renderer has no direct Node access
-- `contextIsolation: true` — renderer context isolated from preload
-- `contextBridge.exposeInMainWorld` — explicit, typed API surface
-
-### Preload API (window.electronAPI)
-
-| Method | IPC Channel | Description |
-|--------|-------------|-------------|
-| `exportToFile(data, filename)` | `export-to-file` | Native save dialog |
-| `getMemoryUsage()` | `get-memory-usage` | process.memoryUsage() from main |
-| `onMemoryWarning(cb)` | `memory-warning` | Listener — main fires at >512MB |
-| `offMemoryWarning(cb)` | `memory-warning` | Cleanup listener |
-| `showSaveDialog(options)` | `show-save-dialog` | dialog.showSaveDialog |
-| `getAppVersion()` | `get-app-version` | app.getVersion() |
-| `platform` | (sync) | `process.platform` |
-
-### Memory Monitoring
-
-Electron main process checks memory every 30 seconds:
-```javascript
-// main.cjs
-setInterval(() => {
-  const { heapUsed } = process.memoryUsage();
-  if (heapUsed > 512 * 1024 * 1024) {
-    mainWindow.webContents.send('memory-warning', { heapUsed });
-  }
-}, 30000);
-```
-
-Angular header component listens and displays a warning badge.
-
----
-
-## Features
-
-### Dashboard
-- 4 KPI cards: Total Leads, Active Jobs, Success Rate, Leads Today
-- SVG bar chart — hourly scraping activity (last 24h)
-- SVG donut chart — lead distribution by industry
-- Real-time activity feed — updates every 3 seconds via `interval(3000)`
-- System health bar — memory usage (via Electron IPC or mock)
-- Top 3 active jobs monitor with progress indicators
-
-### Leads Table
-- **1,200+ leads** rendered via CDK Virtual Scroll (O(1) DOM nodes)
-- Multi-column filter panel: industry, country, company size, score range, status
-- Global search with `debounceTime(300) + distinctUntilChanged()`
-- Inverted bulk selection — "Select All" stores 0 IDs
-- Bulk action toolbar: Export, Enrich, Tag, Delete (with count display)
-- Inline detail sidebar — no page navigation, click row to expand
-
-### Scraping Monitor
-- Three tabs: Active / Completed / Failed (Dead Letter Queue)
-- Animated progress bars with shimmer effect for running jobs
-- Real-time lead count updates every 1.2 seconds (interval simulation)
-- New Job modal: name, source (6 options), target URL, scraping depth slider
-- Cancel (active), Retry (failed) actions
-
-### Pipeline (Kanban)
-- 5 stages: New Lead → Contacted → Qualified → Proposal → Won
-- Per-column: lead count badge + total $ value
-- Lead cards: avatar initials, name, company, score pill, estimated value
-- Move stage buttons (← Back / Next →) appear on hover
-- Pipeline total value in header
-
-### Reports & Analytics
-- SVG line chart with fill area — leads generated per day (30 days)
-- SVG donut chart — industry distribution with legend
-- SVG horizontal bar chart — top 10 companies by lead count
-- Success rate breakdown by scraping source
-- Export to CSV — generates Blob + `<a download>` trigger
-
----
-
-## Architectural Patterns Demonstrated
-
-| Pattern | Where | Code |
-|---------|-------|------|
-| Virtual Scrolling | Leads feature | `<cdk-virtual-scroll-viewport itemSize="56">` |
-| OnPush Everywhere | All components | `changeDetection: ChangeDetectionStrategy.OnPush` |
-| Discriminated Union ViewState | All effects | `ViewState<T>` with `@switch` |
-| Inverted Bulk Selection | Leads store | `{ mode: 'include'|'exclude', ids: string[] }` |
-| Signals + toSignal | All components | `toSignal(store.select(...), { initialValue: ... })` |
-| switchMap (cancellable) | loadLeads, refreshLead | Cancels in-flight when new action dispatched |
-| exhaustMap (deduplicate) | exportLeads | Ignores clicks while export running |
-| bufferTime / interval | ScrapingEffects | `interval(1200)` batches job progress updates |
-| Facade Pattern | NgRx store | Components only interact with store, never services |
-| Offline Detection | ConnectivityService | `navigator.onLine` + events → `shareReplay(1)` |
-| Electron contextBridge | preload.cjs | Typed IPC API surface — zero Node in renderer |
-| Memory Monitoring | electron/main.cjs | 30s interval → IPC → Angular warning badge |
-| Lazy Loading Routes | app.routes.ts | `loadComponent()` for all 5 feature modules |
-| Entity Adapter | @ngrx/entity | `upsertMany` idempotency, O(1) lookup by ID |
-| Skeleton Loading | Leads, Scraping | `@if (loading()) { animate-pulse divs }` |
-
----
-
-## Getting Started
-
-### Prerequisites
+Requirements: Node >= 20.11, npm 11, Docker.
 
 ```bash
-node >= 20
-npm >= 10
-```
-
-### Install
-
-```bash
-cd leads-sales-intelligence
+cp .env.example .env     # set SEC_EDGAR_USER_AGENT / GITHUB_TOKEN later, when those sources land
 npm install
+npm run dev              # builds libs, starts Docker infra, applies migrations, runs api + workers + desktop
 ```
 
-### Run (Web)
+`npm run dev` runs, in order: `build:libs`, `docker compose up -d --wait` (Postgres, Redis, Prometheus,
+Grafana), `prisma migrate deploy`, then api, workers and the Angular dev server together.
+Seed demo users and sources once with `npm run db:seed`.
+
+| Service     | URL                                         |
+| ----------- | ------------------------------------------- |
+| Desktop dev | <http://localhost:4200>                     |
+| API / docs  | <http://localhost:3000/api/health>, `/docs` |
+| Prometheus  | <http://localhost:9090>                     |
+| Grafana     | <http://localhost:3001> (admin / admin)     |
+
+Other scripts: `npm run lint`, `typecheck`, `test`, `build`, `format:check`. Desktop only:
+`npm run electron:dev -w @leads/desktop`.
+
+## Trying the pipeline (phase 2)
 
 ```bash
-npm start
-# Opens http://localhost:4200
+npm run db:seed                      # sources + demo users (once)
+curl -X POST localhost:3000/api/jobs -H 'content-type: application/json' \n  -d '{"source":"greenhouse","slugs":["figma","stripe"]}'   # omit slugs to scrape all configured companies
+curl localhost:3000/api/jobs                                   # job status, progress, errors
+curl 'localhost:3000/api/leads?minScore=30&limit=20'           # keyset-paginated leads
+curl localhost:3000/api/metrics/summary
 ```
 
-### Run (Electron)
+All REST routes except `/api/health`, login, refresh and `/docs` require a JWT. Log in as a seeded demo user
+(`sales@demo.local` / `demo1234`, or `admin@demo.local`; set `DEMO_USER_PASSWORD`) with `POST /api/auth/login`
+and send `Authorization: Bearer <accessToken>`. Swagger lives at `/docs`. Companies to scrape
+are in `apps/workers/config/companies.json` (30 Greenhouse boards, 28 Lever sites; edit freely).
+
+How a job flows: `POST /api/jobs` creates a `ScrapingJob` and enqueues one `plan` job in `scrape-<source>`.
+The worker fans it out into one queue job per company, so the per-source limiter (2 req/s, a
+self-imposed courtesy value) bounds HTTP requests. Retryable failures (429, 5xx, network) back off
+exponentially with jitter and honour `Retry-After`, which also pauses that source's queue. Scrapers
+hand raw results to the `ingestion` queue; ingestion normalizes, dedupes by domain, scores and upserts in
+one transaction per company, appends a `LeadEvent` (the sequence number) and publishes `lead.upserted` on Redis.
+
+## Realtime delivery (phase 3)
+
+- **Gateway:** Socket.IO on the API port, authenticated with the same access JWT (`auth: { token }`; a bad token fails with `unauthorized`). `@socket.io/redis-adapter` lets several API instances run.
+- **Batching and filters:** every API instance listens to the Redis `leads:events` channel, buffers `GATEWAY_BATCH_WINDOW_MS` (200 ms), coalesces per lead id and sends each user only leads matching their active subscriptions (industry, region, signal type, minimum score). A user with no active subscription receives nothing; the seed creates an "All leads" one per demo user.
+- **Backpressure:** a socket whose outbound buffer is not drained keeps one pending entry per lead id (newest wins) instead of queueing batches.
+- **Resync:** the client sends `leads:resync { lastSeq }` on connect. The server replays missed deltas from the `LeadEvent` table (with a 100-event overlap, because autoincrement ids can become visible out of commit order and the client ignores older versions) or answers `full` (`unknown-seq`, `gap-too-large`) so the client reloads a REST snapshot.
+- **Latency acks:** the client samples rendered batches and sends `latency:ack`; for now they only feed an in-memory counter. Histograms arrive in phase 5.
+
+### Desktop modes
 
 ```bash
-npm run electron:dev
-# Builds Angular then opens Electron window
+npm run start -w @leads/desktop        # mock mode (default): no backend needed
+npm run start:live -w @leads/desktop   # live mode: REST + Socket.IO against localhost:3000
 ```
 
-### Build
+The client now uses the company model (no person fields, no LinkedIn/Crunchbase/Twitter sources). The header badge shows Live / Reconnecting / Offline / Mock.
 
-```bash
-npm run build           # Production web build
-npm run electron:build  # Electron-optimized build (outputHashing: none)
-```
+## Data sources and terms
 
----
+Implemented, each reviewed in [`docs/sources.md`](docs/sources.md) (endpoints, auth, limits, attribution, what we store and avoid):
 
-## Scripts
+| Source             | Signal                                      | Needs                                                                                                                             |
+| ------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Greenhouse, Lever  | `hiring`                                    | nothing                                                                                                                           |
+| RemoteOK           | `hiring`                                    | nothing. **Jobs link back to Remote OK** (their API terms); few jobs expose a company domain, so yield is low                     |
+| GitHub REST        | `oss-activity` (new repos, releases)        | `GITHUB_TOKEN`; skipped without it                                                                                                |
+| SEC EDGAR          | `filing` (issuer forms only)                | `SEC_EDGAR_USER_AGENT` with your contact; skipped without it                                                                      |
+| Website enrichment | `website-tech` + description and tech hints | nothing. Honors robots.txt (RFC 9309). `WEBSITE_FETCHER=http` (default) or `playwright` (needs `npx playwright install chromium`) |
 
-| Script | Description |
-|--------|-------------|
-| `npm start` | Angular dev server on :4200 |
-| `npm run build` | Production build to `dist/` |
-| `npm test` | Vitest unit tests |
-| `npm run electron:dev` | Build + launch Electron |
-| `npm run electron:build` | Electron-optimized production build |
+Skipped on purpose: Hacker News "Who is hiring" (owner's decision, terms unclear). A source whose terms
+forbid this use is skipped. LinkedIn, Apollo and ZoomInfo are never scraped.
 
----
+### Lead score (0-100)
 
-## Key Design Decisions
+One component per signal type plus a diversity bonus, deterministic given the clock (`apps/workers/src/ingestion/score.ts`):
+hiring `15·log2(1 + Σ recency weight)`, filing 25 (30 days) or 10 (90 days), oss-activity up to 15
+(new repo 8, release 5), funding up to 20, website-tech 5, +10 per extra live signal type. Recency weight:
+1 up to 14 days, 0.5 up to 30, 0.2 up to 90, then 0.
 
-### Why NgRx over plain Signals?
-NgRx was explicitly chosen for this project. It enforces unidirectional data flow via actions, centralizes side effects in effects (testable in isolation), provides `@ngrx/entity` for normalized state (critical for 1200+ leads), and enables Redux DevTools time-travel debugging — all patterns relevant at enterprise scale.
+## Measurements
 
-### Why @ngrx/entity?
-The `EntityAdapter` gives us O(1) lead lookup by ID (`entities[id]`), ordered IDs array for virtual scroll rendering, and idempotent `upsertMany` for real-time updates without duplicates.
+Not available yet: phase 5 is not done (see [`docs/TODO.md`](docs/TODO.md)). When published, every figure in `docs/benchmarks.md` will come from
+**local load tests of this project** (Artillery with 1,000 Socket.IO clients and a synthetic
+~500 events/s publisher; a Playwright 50,000-row grid benchmark), not from production traffic.
 
-### Why CDK Virtual Scroll instead of ag-Grid / TanStack?
-Zero external dependency, Angular-native, and directly demonstrates the `@angular/cdk` knowledge expected in Angular architect interviews. ag-Grid is a black box; CDK virtual scroll is transparent architecture.
+## Quality
 
-### Why outputMode: "static" + no SSR?
-This is an Electron app — there is no server. Angular's SSR (`@angular/ssr`) conflicts with Electron because:
-1. SSR tries to render routes in Node.js during build (prerendering)
-2. `ConnectivityService` uses `window.navigator.onLine` — browser-only API, crashes in Node
-3. Electron loads `file://` URLs — hash routing (`withHashLocation()`) required
+ESLint (flat config) + Prettier across the monorepo, strict TypeScript, Vitest everywhere. CI is
+defined in `.github/workflows/ci.yml` (install, lint, format check, typecheck, test, build).
 
-### Why withHashLocation()?
-Electron uses `file://` protocol. Angular's `PathLocationStrategy` uses HTML5 `pushState` which requires a real web server to handle deep links. `HashLocationStrategy` (`withHashLocation()`) embeds routes as `file:///index.html#/dashboard` — works natively with `file://`.
+## Known limitations (through phase 2)
 
-### Why inline SVG charts?
-No charting library dependency means zero bundle overhead, full control over animations, and demonstrates ability to compute SVG paths mathematically — a skill that impresses in technical interviews. All charts use `viewBox="0 0 400 200"` with computed `d` attributes from signal-derived data.
+- `apps/desktop` is excluded from Prettier and its lint rules are warnings (pre-existing unused
+  imports and `any`), so the move stays a pure relocation.
+- Integration tests (`apps/workers/src/integration`, `apps/api/src/integration`) need the compose Postgres/Redis and a dedicated schema; they are not part of CI yet.
+- The API and the workers each map DB rows to `LeadDto` (duplicated mappers); still to consolidate.
+- A lead whose score drops below a subscription's minimum is not retracted from clients that already hold it.
+- The live desktop client has been verified with unit tests and a Node socket client, not yet in a browser or Electron window.
+- On a memory-starved Windows host set `NODE_OPTIONS=--max-semi-space-size=1` if Node dies with out-of-memory errors at boot.
+- Job postings that disappear from a board are not retired yet; scoring decays by signal age instead.
+- Electron packaging inside the workspace (`electron-builder` with hoisted `node_modules`) is not yet re-verified.
 
----
+## Roadmap
 
-## Mock Data
+1. **Foundation** (this phase): monorepo, shared types, skeletons, Prisma schema, compose, CI.
+2. First real source end to end: Greenhouse + Lever, per-source queues, ingestion, REST, job tracking (this phase).
+3. Realtime: Socket.IO gateway, JWT auth, Redis adapter, batching, filters, resync; desktop on live data, mock mode kept (this phase).
+4. Remaining sources, scoring, subscriptions UI, backpressure (done; subscriptions UI and backpressure landed in phase 3).
+5. Measurement: Prometheus metrics, Grafana dashboard, Artillery, Playwright benchmark. **TODO**, see `docs/TODO.md`.
+6. Hardening: Electron offline cache and memory work, ADRs, final README pass. **TODO**, see `docs/TODO.md`.
 
-**1,200 leads** generated with realistic distributions:
-- 30 first names × 28 last names pool
-- 30 companies across 12 industries
-- 12 countries, 6 cities
-- 14 roles / 5 seniority levels
-- Score: 40–100 (random)
-- Status distributed across: new, contacted, qualified, proposal, won, lost
-- Tech stack: 1–4 technologies from pool of 15
+## Original desktop demo
 
-**24 scraping jobs** with weighted status distribution:
-- `running` × 2, `completed` × 2, `queued` × 1, `failed` × 1 (per 6 generated)
-- Running jobs: progress 5–95%, continuing via `interval(1200)` effect
-- Completed: progress = 100%, has `completedAt`
-
-Real-time simulation:
-- `simulateJobProgress$` effect fires every 1.2 seconds
-- Each tick: progress +1–8%, leadsFound +5–80, errorCount +0/1 (10% chance)
-- Job auto-completes when progress reaches 100%
+The mock-data demo (1,200 generated leads, simulated scraping, NgRx entity store, CDK virtual scroll,
+Electron tray and memory monitor) lives in `apps/desktop` and remains the default until phase 3.

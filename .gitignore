@@ -1,13 +1,13 @@
 # See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
 # Compiled output
-/dist
+dist
 /tmp
-/out-tsc
+out-tsc
 /bazel-out
 
 # Node
-/node_modules
+node_modules
 npm-debug.log
 yarn-error.log
 
@@ -30,10 +30,10 @@ yarn-error.log
 .history/*
 
 # Miscellaneous
-/.angular/cache
+.angular/cache
 .sass-cache/
 /connect.lock
-/coverage
+coverage
 /libpeerconnection.log
 testem.log
 /typings
@@ -44,8 +44,8 @@ __screenshots__/
 Thumbs.db
 
 # Electron build output
-/release
-/dist-electron
+release
+dist-electron
 
 # Environment & secrets
 .env
@@ -63,3 +63,11 @@ logs/
 # OS
 desktop.ini
 $RECYCLE.BIN/
+
+# Monorepo
+tools/loadtest/reports/
+.turbo/
+
+# Angular build cache inside workspaces (a slash in a pattern anchors it to the repo root)
+**/.angular/cache/
+**/*.tsbuildinfo

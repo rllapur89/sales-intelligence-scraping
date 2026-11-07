@@ -1,0 +1,60 @@
+[
+  {
+    "name": "marketplace-skills",
+    "full_name": "vercel/marketplace-skills",
+    "created_at": "2026-11-01T01:47:23Z",
+    "pushed_at": "2026-11-01T02:24:26Z",
+    "language": null,
+    "topics": [],
+    "stargazers_count": 0,
+    "html_url": "https://github.com/vercel/marketplace-skills"
+  },
+  {
+    "name": "academy-starters",
+    "full_name": "vercel/academy-starters",
+    "created_at": "2026-10-27T17:17:58Z",
+    "pushed_at": "2026-11-06T20:10:25Z",
+    "language": "TypeScript",
+    "topics": [
+      "ai-sdk",
+      "course",
+      "nextjs",
+      "starter-template",
+      "tutorial",
+      "vercel",
+      "vercel-academy"
+    ],
+    "stargazers_count": 0,
+    "html_url": "https://github.com/vercel/academy-starters"
+  },
+  {
+    "name": "academy-nextjs-foundations",
+    "full_name": "vercel/academy-nextjs-foundations",
+    "created_at": "2026-10-26T20:22:27Z",
+    "pushed_at": "2026-10-26T20:23:51Z",
+    "language": "TypeScript",
+    "topics": [],
+    "stargazers_count": 0,
+    "html_url": "https://github.com/vercel/academy-nextjs-foundations"
+  },
+  {
+    "name": "academy-nuxt-on-vercel",
+    "full_name": "vercel/academy-nuxt-on-vercel",
+    "created_at": "2026-10-16T17:11:34Z",
+    "pushed_at": "2026-10-16T20:15:48Z",
+    "language": "Vue",
+    "topics": [],
+    "stargazers_count": 0,
+    "html_url": "https://github.com/vercel/academy-nuxt-on-vercel"
+  },
+  {
+    "name": "academy-workflow-foundations",
+    "full_name": "vercel/academy-workflow-foundations",
+    "created_at": "2026-10-16T17:11:25Z",
+    "pushed_at": "2026-10-16T17:11:33Z",
+    "language": "TypeScript",
+    "topics": [],
+    "stargazers_count": 0,
+    "html_url": "https://github.com/vercel/academy-workflow-foundations"
+  }
+]
