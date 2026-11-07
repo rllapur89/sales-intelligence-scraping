@@ -1,0 +1,470 @@
+{
+  "_comment": "Editable. 'slug' is the board token (Greenhouse) or site (Lever). 'domain' is the company identity key (normalized registrable domain); a wrong domain merges or splits companies, so double-check when adding. All slugs returned HTTP 200 when probed on 2026-11-07. Optional per-company fields: githubOrg (GitHub organization login, verified to exist on 2026-11-07) and secTicker (resolved to a CIK at run time; unverified until a run with SEC_EDGAR_USER_AGENT set, the scraper checks that the EDGAR company name matches).",
+  "greenhouse": [
+    {
+      "slug": "stripe",
+      "name": "Stripe",
+      "domain": "stripe.com",
+      "industry": "Fintech",
+      "region": "US",
+      "githubOrg": "stripe"
+    },
+    {
+      "slug": "airbnb",
+      "name": "Airbnb",
+      "domain": "airbnb.com",
+      "industry": "Travel",
+      "region": "US",
+      "githubOrg": "airbnb",
+      "secTicker": "ABNB"
+    },
+    {
+      "slug": "figma",
+      "name": "Figma",
+      "domain": "figma.com",
+      "industry": "Design software",
+      "region": "US",
+      "githubOrg": "figma",
+      "secTicker": "FIG"
+    },
+    {
+      "slug": "discord",
+      "name": "Discord",
+      "domain": "discord.com",
+      "industry": "Social",
+      "region": "US",
+      "githubOrg": "discord"
+    },
+    {
+      "slug": "databricks",
+      "name": "Databricks",
+      "domain": "databricks.com",
+      "industry": "Data & AI",
+      "region": "US",
+      "githubOrg": "databricks"
+    },
+    {
+      "slug": "cloudflare",
+      "name": "Cloudflare",
+      "domain": "cloudflare.com",
+      "industry": "Infrastructure",
+      "region": "US",
+      "githubOrg": "cloudflare",
+      "secTicker": "NET"
+    },
+    {
+      "slug": "datadog",
+      "name": "Datadog",
+      "domain": "datadoghq.com",
+      "industry": "Observability",
+      "region": "US",
+      "githubOrg": "DataDog",
+      "secTicker": "DDOG"
+    },
+    {
+      "slug": "coinbase",
+      "name": "Coinbase",
+      "domain": "coinbase.com",
+      "industry": "Crypto",
+      "region": "US",
+      "githubOrg": "coinbase",
+      "secTicker": "COIN"
+    },
+    {
+      "slug": "reddit",
+      "name": "Reddit",
+      "domain": "reddit.com",
+      "industry": "Social",
+      "region": "US",
+      "githubOrg": "reddit",
+      "secTicker": "RDDT"
+    },
+    {
+      "slug": "pinterest",
+      "name": "Pinterest",
+      "domain": "pinterest.com",
+      "industry": "Social",
+      "region": "US",
+      "githubOrg": "pinterest",
+      "secTicker": "PINS"
+    },
+    {
+      "slug": "lyft",
+      "name": "Lyft",
+      "domain": "lyft.com",
+      "industry": "Mobility",
+      "region": "US",
+      "githubOrg": "lyft",
+      "secTicker": "LYFT"
+    },
+    {
+      "slug": "instacart",
+      "name": "Instacart",
+      "domain": "instacart.com",
+      "industry": "Retail tech",
+      "region": "US",
+      "githubOrg": "instacart",
+      "secTicker": "CART"
+    },
+    {
+      "slug": "dropbox",
+      "name": "Dropbox",
+      "domain": "dropbox.com",
+      "industry": "SaaS",
+      "region": "US",
+      "githubOrg": "dropbox",
+      "secTicker": "DBX"
+    },
+    {
+      "slug": "asana",
+      "name": "Asana",
+      "domain": "asana.com",
+      "industry": "SaaS",
+      "region": "US",
+      "githubOrg": "Asana",
+      "secTicker": "ASAN"
+    },
+    {
+      "slug": "twilio",
+      "name": "Twilio",
+      "domain": "twilio.com",
+      "industry": "Communications",
+      "region": "US",
+      "githubOrg": "twilio",
+      "secTicker": "TWLO"
+    },
+    {
+      "slug": "okta",
+      "name": "Okta",
+      "domain": "okta.com",
+      "industry": "Security",
+      "region": "US",
+      "githubOrg": "okta",
+      "secTicker": "OKTA"
+    },
+    {
+      "slug": "gitlab",
+      "name": "GitLab",
+      "domain": "gitlab.com",
+      "industry": "Developer tools",
+      "region": "Remote",
+      "githubOrg": "gitlabhq",
+      "secTicker": "GTLB"
+    },
+    {
+      "slug": "mongodb",
+      "name": "MongoDB",
+      "domain": "mongodb.com",
+      "industry": "Databases",
+      "region": "US",
+      "githubOrg": "mongodb",
+      "secTicker": "MDB"
+    },
+    {
+      "slug": "elastic",
+      "name": "Elastic",
+      "domain": "elastic.co",
+      "industry": "Search & observability",
+      "region": "US",
+      "githubOrg": "elastic",
+      "secTicker": "ESTC"
+    },
+    {
+      "slug": "robinhood",
+      "name": "Robinhood",
+      "domain": "robinhood.com",
+      "industry": "Fintech",
+      "region": "US",
+      "githubOrg": "robinhood",
+      "secTicker": "HOOD"
+    },
+    {
+      "slug": "brex",
+      "name": "Brex",
+      "domain": "brex.com",
+      "industry": "Fintech",
+      "region": "US",
+      "githubOrg": "brexhq"
+    },
+    {
+      "slug": "anthropic",
+      "name": "Anthropic",
+      "domain": "anthropic.com",
+      "industry": "Data & AI",
+      "region": "US",
+      "githubOrg": "anthropics"
+    },
+    {
+      "slug": "airtable",
+      "name": "Airtable",
+      "domain": "airtable.com",
+      "industry": "SaaS",
+      "region": "US",
+      "githubOrg": "Airtable"
+    },
+    {
+      "slug": "squarespace",
+      "name": "Squarespace",
+      "domain": "squarespace.com",
+      "industry": "SaaS",
+      "region": "US",
+      "githubOrg": "squarespace"
+    },
+    {
+      "slug": "duolingo",
+      "name": "Duolingo",
+      "domain": "duolingo.com",
+      "industry": "Education",
+      "region": "US",
+      "githubOrg": "duolingo",
+      "secTicker": "DUOL"
+    },
+    {
+      "slug": "vercel",
+      "name": "Vercel",
+      "domain": "vercel.com",
+      "industry": "Developer tools",
+      "region": "US",
+      "githubOrg": "vercel"
+    },
+    {
+      "slug": "webflow",
+      "name": "Webflow",
+      "domain": "webflow.com",
+      "industry": "SaaS",
+      "region": "US",
+      "githubOrg": "webflow"
+    },
+    {
+      "slug": "intercom",
+      "name": "Intercom",
+      "domain": "intercom.com",
+      "industry": "SaaS",
+      "region": "US",
+      "githubOrg": "intercom"
+    },
+    {
+      "slug": "samsara",
+      "name": "Samsara",
+      "domain": "samsara.com",
+      "industry": "IoT",
+      "region": "US",
+      "githubOrg": "samsarahq",
+      "secTicker": "IOT"
+    },
+    {
+      "slug": "toast",
+      "name": "Toast",
+      "domain": "toasttab.com",
+      "industry": "Restaurant tech",
+      "region": "US",
+      "githubOrg": "toasttab",
+      "secTicker": "TOST"
+    }
+  ],
+  "lever": [
+    {
+      "slug": "palantir",
+      "name": "Palantir",
+      "domain": "palantir.com",
+      "industry": "Data & AI",
+      "region": "US",
+      "githubOrg": "palantir",
+      "secTicker": "PLTR"
+    },
+    {
+      "slug": "spotify",
+      "name": "Spotify",
+      "domain": "spotify.com",
+      "industry": "Media",
+      "region": "SE",
+      "githubOrg": "spotify",
+      "secTicker": "SPOT"
+    },
+    {
+      "slug": "kraken",
+      "name": "Kraken",
+      "domain": "kraken.com",
+      "industry": "Crypto",
+      "region": "US",
+      "githubOrg": "krakenfx"
+    },
+    {
+      "slug": "wealthfront",
+      "name": "Wealthfront",
+      "domain": "wealthfront.com",
+      "industry": "Fintech",
+      "region": "US"
+    },
+    {
+      "slug": "gopuff",
+      "name": "Gopuff",
+      "domain": "gopuff.com",
+      "industry": "Retail tech",
+      "region": "US"
+    },
+    {
+      "slug": "ro",
+      "name": "Ro",
+      "domain": "ro.co",
+      "industry": "Healthcare",
+      "region": "US"
+    },
+    {
+      "slug": "lever",
+      "name": "Lever",
+      "domain": "lever.co",
+      "industry": "HR tech",
+      "region": "US",
+      "githubOrg": "lever"
+    },
+    {
+      "slug": "outreach",
+      "name": "Outreach",
+      "domain": "outreach.io",
+      "industry": "Sales tech",
+      "region": "US"
+    },
+    {
+      "slug": "nielsen",
+      "name": "Nielsen",
+      "domain": "nielsen.com",
+      "industry": "Media measurement",
+      "region": "US"
+    },
+    {
+      "slug": "whoop",
+      "name": "WHOOP",
+      "domain": "whoop.com",
+      "industry": "Health & wearables",
+      "region": "US"
+    },
+    {
+      "slug": "highspot",
+      "name": "Highspot",
+      "domain": "highspot.com",
+      "industry": "Sales tech",
+      "region": "US"
+    },
+    {
+      "slug": "zeta",
+      "name": "Zeta Global",
+      "domain": "zetaglobal.com",
+      "industry": "Marketing tech",
+      "region": "US"
+    },
+    {
+      "slug": "pattern",
+      "name": "Pattern",
+      "domain": "pattern.com",
+      "industry": "E-commerce",
+      "region": "US"
+    },
+    {
+      "slug": "clari",
+      "name": "Clari",
+      "domain": "clari.com",
+      "industry": "Sales tech",
+      "region": "US"
+    },
+    {
+      "slug": "weride",
+      "name": "WeRide",
+      "domain": "weride.ai",
+      "industry": "Autonomous vehicles",
+      "region": "CN"
+    },
+    {
+      "slug": "rover",
+      "name": "Rover",
+      "domain": "rover.com",
+      "industry": "Consumer marketplace",
+      "region": "US"
+    },
+    {
+      "slug": "jumpcloud",
+      "name": "JumpCloud",
+      "domain": "jumpcloud.com",
+      "industry": "Security",
+      "region": "US"
+    },
+    {
+      "slug": "aledade",
+      "name": "Aledade",
+      "domain": "aledade.com",
+      "industry": "Healthcare",
+      "region": "US"
+    },
+    {
+      "slug": "paytm",
+      "name": "Paytm",
+      "domain": "paytm.com",
+      "industry": "Fintech",
+      "region": "IN"
+    },
+    {
+      "slug": "cred",
+      "name": "CRED",
+      "domain": "cred.club",
+      "industry": "Fintech",
+      "region": "IN"
+    },
+    {
+      "slug": "dnb",
+      "name": "Dun & Bradstreet",
+      "domain": "dnb.com",
+      "industry": "Data & analytics",
+      "region": "US"
+    },
+    {
+      "slug": "binance",
+      "name": "Binance",
+      "domain": "binance.com",
+      "industry": "Crypto",
+      "region": "Global"
+    },
+    {
+      "slug": "zoox",
+      "name": "Zoox",
+      "domain": "zoox.com",
+      "industry": "Autonomous vehicles",
+      "region": "US"
+    },
+    {
+      "slug": "tala",
+      "name": "Tala",
+      "domain": "tala.co",
+      "industry": "Fintech",
+      "region": "US"
+    },
+    {
+      "slug": "nimblerx",
+      "name": "NimbleRx",
+      "domain": "nimblerx.com",
+      "industry": "Healthcare",
+      "region": "US"
+    },
+    {
+      "slug": "freshworks",
+      "name": "Freshworks",
+      "domain": "freshworks.com",
+      "industry": "SaaS",
+      "region": "US",
+      "secTicker": "FRSH"
+    },
+    {
+      "slug": "meesho",
+      "name": "Meesho",
+      "domain": "meesho.com",
+      "industry": "E-commerce",
+      "region": "IN"
+    },
+    {
+      "slug": "anchorage",
+      "name": "Anchorage Digital",
+      "domain": "anchorage.com",
+      "industry": "Crypto",
+      "region": "US"
+    }
+  ]
+}
