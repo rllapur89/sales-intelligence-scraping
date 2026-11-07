@@ -1,0 +1,15 @@
+dist
+node_modules
+.angular
+release
+coverage
+package-lock.json
+odd
+packages/db/prisma/migrations
+**/*.html
+infra/grafana/dashboards
+apps/desktop
+.vscode
+docs/superpowers
+.atl
+.prettierrc
