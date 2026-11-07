@@ -67,3 +67,7 @@ $RECYCLE.BIN/
 # Monorepo
 tools/loadtest/reports/
 .turbo/
+
+# Angular build cache inside workspaces (a slash in a pattern anchors it to the repo root)
+**/.angular/cache/
+**/*.tsbuildinfo
