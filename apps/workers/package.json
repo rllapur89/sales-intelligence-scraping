@@ -1,0 +1,31 @@
+{
+  "name": "@leads/workers",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:integration": "cross-env INTEGRATION_TESTS=1 vitest run src/integration"
+  },
+  "dependencies": {
+    "@leads/db": "*",
+    "@leads/shared": "*",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.4.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "~7.8.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@types/node": "^20.17.19",
+    "cross-env": "^10.1.0",
+    "vitest": "^4.0.8"
+  }
+}
