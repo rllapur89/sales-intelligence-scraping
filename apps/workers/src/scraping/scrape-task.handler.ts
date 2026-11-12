@@ -9,6 +9,7 @@ import type {
 import { HttpError } from '../http/http-client';
 import { jitteredBackoffMs } from '../queues/backoff';
 import type { Scraper } from '../scrapers/scraper';
+import { NOOP_OBSERVER, type ScrapeObserver } from '../telemetry/scrape-observer';
 import type { ScrapeJobStore } from './job-store';
 
 export interface ScrapeTaskDeps {
@@ -21,6 +22,8 @@ export interface ScrapeTaskDeps {
   /** Hands raw results to the ingestion queue. Scrapers never touch the DB or clients. */
   publishRaw: (result: RawScrapeResult) => Promise<void>;
   now?: () => number;
+  /** Receives metrics events; defaults to a no-op. */
+  observer?: ScrapeObserver;
 }
 
 export interface TaskContext {
@@ -83,9 +86,10 @@ export class ScrapeTaskHandler {
     if (!scraper) throw new Error(`No scraper registered for ${task.source}`);
     const policy = this.deps.policyFor(task.source);
     const now = this.deps.now ?? Date.now;
+    const observer = this.deps.observer ?? NOOP_OBSERVER;
 
+    const scrapedAt = now();
     try {
-      const scrapedAt = now();
       const items = await scraper.scrape(task.target);
       await this.deps.publishRaw({
         source: task.source,
@@ -96,6 +100,8 @@ export class ScrapeTaskHandler {
       });
       await this.deps.jobs.recordTask(task.scrapingJobId, { itemsFound: items.length });
       await this.deps.jobs.recordSourceOutcome(task.source, { ok: true });
+      observer.itemsFound(task.source, items.length);
+      observer.taskFinished(task.source, 'scraped', (now() - scrapedAt) / 1000);
       return 'scraped';
     } catch (err) {
       const http = err instanceof HttpError ? err : null;
@@ -105,14 +111,19 @@ export class ScrapeTaskHandler {
       if (http && (http.status === 429 || http.rateLimited)) {
         const pause = http.retryAfterMs ?? jitteredBackoffMs(ctx.attemptsMade + 1, policy.backoff);
         this.logger.warn(`${task.source} rate limited, pausing queue ${pause} ms`);
+        observer.rateLimited(task.source, pause);
         await ctx.pauseQueue(pause);
       }
-      if (retryable && !lastAttempt) throw err;
+      if (retryable && !lastAttempt) {
+        observer.retried(task.source);
+        throw err;
+      }
 
       const message = `${task.target.slug}: ${(err as Error).message}`;
       this.logger.warn(`${task.source} task failed for good: ${message}`);
       await this.deps.jobs.recordTask(task.scrapingJobId, { itemsFound: 0, error: message });
       await this.deps.jobs.recordSourceOutcome(task.source, { ok: false, error: message });
+      observer.taskFinished(task.source, 'failed', (now() - scrapedAt) / 1000);
       return 'failed';
     }
   }
