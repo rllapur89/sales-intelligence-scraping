@@ -6,6 +6,7 @@ import { DATA_MODE } from '../../core/config/app-environment';
 import { RealtimeService } from '../../core/realtime/realtime.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { connectivityBadge } from './connectivity-badge';
+import { NotificationBellComponent } from '../../shared/components/notifications/notification-bell.component';
 import { selectLeadsFilter } from '../../core/store/leads/leads.selectors';
 import { LeadsActions } from '../../core/store/leads/leads.actions';
 import { FormsModule } from '@angular/forms';
@@ -15,7 +16,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, NotificationBellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="h-14 bg-slate-900 border-b border-slate-800 flex items-center px-4 gap-4 shrink-0">
@@ -42,11 +43,8 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
           <span>{{ badge().label }}</span>
         </div>
 
-        <!-- Notification bell -->
-        <button class="relative p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
-          <span class="text-lg">🔔</span>
-          <span class="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
-        </button>
+        <!-- Notification center -->
+        <app-notification-bell />
 
         <!-- User avatar -->
         <div class="flex items-center gap-2 pl-3 border-l border-slate-700">
