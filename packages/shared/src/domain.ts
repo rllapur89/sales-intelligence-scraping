@@ -92,6 +92,8 @@ export interface SubscriptionDto {
   id: string;
   name: string;
   active: boolean;
+  /** Notify (in-app) when a lead newly matches with a high score. */
+  notify: boolean;
   filter: SubscriptionFilter;
 }
 

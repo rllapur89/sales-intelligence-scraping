@@ -6,3 +6,4 @@ export * from './worker-presence';
 export * from './lead-mapper';
 export * from './analytics';
 export * from './crm';
+export * from './notifications';
