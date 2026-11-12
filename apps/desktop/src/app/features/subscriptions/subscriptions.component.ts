@@ -11,6 +11,7 @@ export function emptyDraft(): SubscriptionDraft {
   return {
     name: '',
     active: true,
+    notify: false,
     filter: { industries: [], regions: [], signalTypes: [], minScore: 0 },
   };
 }
@@ -125,6 +126,14 @@ export function addChip(list: readonly string[], value: string): string[] {
           </div>
 
           <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+            <input id="sub-notify" type="checkbox" [checked]="d.notify === true" (change)="patch({ notify: !d.notify })"
+                   data-testid="sub-notify"
+                   class="rounded border-slate-600 bg-slate-800 text-blue-500" />
+            Notify me about new matches
+            <span class="text-xs text-slate-500">(score 70 or more, at most once a day per lead)</span>
+          </label>
+
+          <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
             <input type="checkbox" [checked]="d.active" (change)="patch({ active: !d.active })"
                    class="rounded border-slate-600 bg-slate-800 text-blue-500" />
             Active
@@ -164,6 +173,10 @@ export function addChip(list: readonly string[], value: string): string[] {
                         [class]="sub.active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-600/40 text-slate-400'">
                     {{ sub.active ? 'active' : 'paused' }}
                   </span>
+                  @if (sub.notify) {
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-blue-500/20 text-blue-300"
+                          data-testid="notify-badge">notify</span>
+                  }
                 </div>
                 <p class="text-xs text-slate-400">{{ summary(sub) }}</p>
               </div>
@@ -204,7 +217,7 @@ export class SubscriptionsComponent implements OnInit {
 
   startEdit(sub: SubscriptionDto): void {
     this.editingId.set(sub.id);
-    this.draft.set(draftOf(sub));
+    this.draft.set({ ...draftOf(sub), notify: sub.notify ?? false });
   }
 
   cancel(): void {
@@ -214,7 +227,7 @@ export class SubscriptionsComponent implements OnInit {
     this.regionInput.set('');
   }
 
-  patch(changes: Partial<Pick<SubscriptionDraft, 'name' | 'active'>>): void {
+  patch(changes: Partial<Pick<SubscriptionDraft, 'name' | 'active' | 'notify'>>): void {
     this.draft.update(d => (d ? { ...d, ...changes } : d));
   }
 

@@ -1,7 +1,12 @@
 import { TestBed } from '@angular/core/testing';
+import { firstValueFrom } from 'rxjs';
 import { SubscriptionsComponent, addChip, emptyDraft } from './subscriptions.component';
 import { SubscriptionsService } from '../../core/services/subscriptions.service';
-import { MockSubscriptionsDataSource, SubscriptionsDataSource } from '../../core/data/subscriptions.data-source';
+import {
+  MockSubscriptionsDataSource,
+  SubscriptionsDataSource,
+  toSubscriptionBody,
+} from '../../core/data/subscriptions.data-source';
 import { ToastService } from '../../shared/services/toast.service';
 
 describe('addChip', () => {
@@ -73,5 +78,73 @@ describe('SubscriptionsComponent', () => {
     cmp.toggleSignalType('hiring');
     expect(cmp.draft()?.filter.industries).toEqual([]);
     expect(cmp.draft()?.filter.signalTypes).toEqual([]);
+  });
+});
+
+describe('subscription notify flag', () => {
+  const filter = { industries: [], regions: [], signalTypes: [], minScore: 0 };
+
+  it('new drafts start with notify off', () => {
+    expect(emptyDraft().notify).toBe(false);
+  });
+
+  it('toSubscriptionBody sends notify only when the draft sets it', () => {
+    expect(toSubscriptionBody({ name: 'A', active: true, notify: true, filter })).toMatchObject({ notify: true });
+    expect(toSubscriptionBody({ name: 'A', active: true, notify: false, filter })).toMatchObject({ notify: false });
+    expect('notify' in toSubscriptionBody({ name: 'A', active: true, filter })).toBe(false);
+  });
+
+  it('the mock source stores notify and keeps it when a draft does not say', async () => {
+    const source = new MockSubscriptionsDataSource();
+    expect((await firstValueFrom(source.list()))[0].notify).toBe(false);
+    const created = await firstValueFrom(source.create({ name: 'Hot', active: true, notify: true, filter }));
+    expect(created.notify).toBe(true);
+    const paused = await firstValueFrom(source.update(created.id, { name: 'Hot', active: false, filter }));
+    expect(paused.notify).toBe(true);
+    const off = await firstValueFrom(source.update(created.id, { name: 'Hot', active: false, notify: false, filter }));
+    expect(off.notify).toBe(false);
+  });
+
+  it('pausing through the service keeps notify on', () => {
+    TestBed.configureTestingModule({
+      providers: [{ provide: SubscriptionsDataSource, useClass: MockSubscriptionsDataSource }],
+    });
+    const service = TestBed.inject(SubscriptionsService);
+    service.load();
+    service.save(null, { ...emptyDraft(), name: 'Alerts', notify: true });
+    const created = service.items()[1];
+    expect(created.notify).toBe(true);
+    service.toggleActive(created);
+    expect(service.items()[1].active).toBe(false);
+    expect(service.items()[1].notify).toBe(true);
+  });
+
+  it('the editor toggles notify and loads it back when editing', async () => {
+    TestBed.configureTestingModule({
+      imports: [SubscriptionsComponent],
+      providers: [{ provide: SubscriptionsDataSource, useClass: MockSubscriptionsDataSource }],
+    });
+    const fixture = TestBed.createComponent(SubscriptionsComponent);
+    const cmp = fixture.componentInstance;
+    await fixture.whenStable();
+
+    cmp.startCreate();
+    fixture.detectChanges();
+    const box = (): HTMLInputElement =>
+      fixture.nativeElement.querySelector('[data-testid="sub-notify"]') as HTMLInputElement;
+    expect(box().checked).toBe(false);
+    box().click();
+    expect(cmp.draft()?.notify).toBe(true);
+    cmp.patch({ name: 'Hot' });
+    cmp.save();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const saved = cmp.service.items().find(i => i.name === 'Hot')!;
+    expect(saved.notify).toBe(true);
+    expect(fixture.nativeElement.querySelectorAll('[data-testid="notify-badge"]')).toHaveLength(1);
+
+    cmp.startEdit(saved);
+    expect(cmp.draft()?.notify).toBe(true);
   });
 });

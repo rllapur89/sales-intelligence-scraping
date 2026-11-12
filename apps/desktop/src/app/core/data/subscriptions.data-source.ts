@@ -7,14 +7,17 @@ import { ApiService, SubscriptionBody } from '../services/api.service';
 export interface SubscriptionDraft {
   name: string;
   active: boolean;
+  /** In-app notifications for new high-score matches. Absent = leave the stored value unchanged. */
+  notify?: boolean;
   filter: SubscriptionFilter;
 }
 
-/** Flat body expected by the API DTOs. Pure. */
-export function toSubscriptionBody(draft: SubscriptionDraft): SubscriptionBody {
+/** Flat body expected by the API DTOs (`notify` is sent only when the draft sets it). Pure. */
+export function toSubscriptionBody(draft: SubscriptionDraft): SubscriptionBody & { notify?: boolean } {
   return {
     name: draft.name.trim(),
     active: draft.active,
+    ...(draft.notify !== undefined && { notify: draft.notify }),
     industries: draft.filter.industries,
     regions: draft.filter.regions,
     signalTypes: draft.filter.signalTypes,
@@ -37,6 +40,7 @@ export class MockSubscriptionsDataSource extends SubscriptionsDataSource {
       id: 'sub-all',
       name: 'All leads',
       active: true,
+      notify: false,
       filter: { industries: [], regions: [], signalTypes: [], minScore: 0 },
     },
   ];
@@ -47,7 +51,7 @@ export class MockSubscriptionsDataSource extends SubscriptionsDataSource {
   }
 
   create(draft: SubscriptionDraft): Observable<SubscriptionDto> {
-    const created: SubscriptionDto = { id: `sub-${this.nextId++}`, ...this.normalize(draft) };
+    const created: SubscriptionDto = { id: `sub-${this.nextId++}`, ...this.normalize(draft, false) };
     this.items = [...this.items, created];
     return of(created);
   }
@@ -55,7 +59,7 @@ export class MockSubscriptionsDataSource extends SubscriptionsDataSource {
   update(id: string, draft: SubscriptionDraft): Observable<SubscriptionDto> {
     const current = this.items.find(s => s.id === id);
     if (!current) return throwError(() => new Error('Subscription not found'));
-    const updated: SubscriptionDto = { id, ...this.normalize(draft) };
+    const updated: SubscriptionDto = { id, ...this.normalize(draft, current.notify) };
     this.items = this.items.map(s => (s.id === id ? updated : s));
     return of(updated);
   }
@@ -65,10 +69,12 @@ export class MockSubscriptionsDataSource extends SubscriptionsDataSource {
     return of(undefined);
   }
 
-  private normalize(draft: SubscriptionDraft): Omit<SubscriptionDto, 'id'> {
+  /** `fallbackNotify` is kept when the draft does not say (for example a pause/resume toggle). */
+  private normalize(draft: SubscriptionDraft, fallbackNotify: boolean): Omit<SubscriptionDto, 'id'> {
     return {
       name: draft.name.trim(),
       active: draft.active,
+      notify: draft.notify ?? fallbackNotify,
       filter: { ...draft.filter, minScore: Math.round(draft.filter.minScore) },
     };
   }
