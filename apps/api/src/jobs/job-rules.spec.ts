@@ -1,5 +1,9 @@
 import 'reflect-metadata';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { JOB_STATUSES, SOURCE_KEYS, SOURCE_POLICIES } from '@leads/shared';
@@ -8,6 +12,7 @@ import {
   assertCancellable,
   assertRetryable,
   assertSourceReviewed,
+  assertWorkerPresent,
   buildPlanJobOptions,
   buildPlanTaskData,
   canCancel,
@@ -99,5 +104,18 @@ describe('CreateJobDto', () => {
     ['extra field', { source: 'lever', foo: 1 }],
   ])('rejects %s', (_n, plain) => {
     expect(errors(plain)).toBeGreaterThan(0);
+  });
+});
+
+describe('assertWorkerPresent', () => {
+  it('passes when a worker serves the source', () => {
+    expect(() => assertWorkerPresent('github', true)).not.toThrow();
+  });
+
+  it('answers 503 naming the source when no worker serves it', () => {
+    expect(() => assertWorkerPresent('github', false)).toThrow(ServiceUnavailableException);
+    expect(() => assertWorkerPresent('github', false)).toThrow(
+      'No worker is running for source "github"',
+    );
   });
 });
