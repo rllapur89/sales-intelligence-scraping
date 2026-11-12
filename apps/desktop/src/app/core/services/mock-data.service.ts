@@ -11,6 +11,7 @@ import {
 import { Lead } from '../models/lead.model';
 import { ScrapingJob, JobStatus } from '../models/scraping-job.model';
 import { ActivityEvent, ChartPoint } from '../models/metrics.model';
+import { parseRowCount } from '../util/row-count';
 
 const COMPANIES = [
   'TechNova', 'Apex Systems', 'CloudForge', 'DataStream', 'NexGen Solutions',
@@ -105,7 +106,10 @@ function generateJob(index: number): ScrapingJob {
 
 @Injectable({ providedIn: 'root' })
 export class MockDataService {
-  private readonly _leads: Lead[] = Array.from({ length: 1200 }, (_, i) => generateLead(i));
+  private readonly _leads: Lead[] = Array.from(
+    { length: parseRowCount(typeof location === 'undefined' ? undefined : location.search) },
+    (_, i) => generateLead(i)
+  );
   private readonly _jobs: ScrapingJob[] = Array.from({ length: 24 }, (_, i) => generateJob(i));
 
   getLeads(): Lead[] {
