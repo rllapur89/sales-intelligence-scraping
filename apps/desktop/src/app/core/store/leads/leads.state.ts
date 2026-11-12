@@ -17,6 +17,8 @@ export interface LeadsState extends EntityState<Lead> {
   connection: RealtimeStatus;
   /** Ids touched by recent live batches; rows flash until `clearChanged`. */
   changedIds: string[];
+  /** True while the leads shown come from the offline cache and the REST snapshot has not replaced them yet. */
+  fromCache: boolean;
 }
 
 export const leadsAdapter = createEntityAdapter<Lead>({ selectId: l => l.id });
@@ -33,4 +35,5 @@ export const initialLeadsState: LeadsState = leadsAdapter.getInitialState({
   lastSeq: 0,
   connection: 'disconnected' as RealtimeStatus,
   changedIds: [] as string[],
+  fromCache: false,
 });
