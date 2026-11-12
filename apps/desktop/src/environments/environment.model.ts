@@ -9,6 +9,10 @@ export interface Environment {
   demoUser: { email: string; password: string };
   /** Maximum number of leads loaded by the initial REST snapshot. */
   snapshotMaxLeads: number;
+  /** Maximum age of the offline snapshot cache before it is ignored, in milliseconds. */
+  snapshotMaxAgeMs: number;
+  /** Quiet period after the last live batch before the offline cache is saved, in milliseconds. */
+  snapshotSaveDebounceMs: number;
   /** Page size of the snapshot keyset pagination (API maximum is 200). */
   snapshotPageSize: number;
   /** Fraction (0-1) of rendered leads reported back through `latency:ack`. */
