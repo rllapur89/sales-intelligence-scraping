@@ -12,6 +12,7 @@ import {
   LiveAnalyticsDataSource,
   MockAnalyticsDataSource,
 } from './analytics.data-source';
+import { CrmDataSource, LiveCrmDataSource, MockCrmDataSource } from './crm.data-source';
 import {
   LiveMetricsDataSource,
   MetricsDataSource,
@@ -33,5 +34,6 @@ export function provideDataSources(mode: DataMode): Provider[] {
       provide: AnalyticsDataSource,
       useClass: live ? LiveAnalyticsDataSource : MockAnalyticsDataSource,
     },
+    { provide: CrmDataSource, useClass: live ? LiveCrmDataSource : MockCrmDataSource },
   ];
 }

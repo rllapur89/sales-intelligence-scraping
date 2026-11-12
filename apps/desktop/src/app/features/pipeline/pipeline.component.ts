@@ -8,6 +8,8 @@ import { selectFilteredLeads } from '../../core/store/leads/leads.selectors';
 import { LeadsActions } from '../../core/store/leads/leads.actions';
 import { Lead, PipelineStage } from '../../core/models/lead.model';
 import { DecimalPipe } from '@angular/common';
+import { CrmDataSource } from '../../core/data/crm.data-source';
+import { assigneeInitial, assigneeLabel } from '../../core/crm/crm-view';
 
 const STAGES: { key: PipelineStage; label: string; color: string; icon: string }[] = [
   { key: 'new', label: 'New Lead', color: 'border-blue-500/40 bg-blue-500/5', icon: '🌱' },
@@ -68,6 +70,11 @@ const STAGES: { key: PipelineStage; label: string; color: string; icon: string }
                       <div class="text-xs font-semibold text-white truncate">{{ lead.company.name }}</div>
                       <div class="text-[10px] text-blue-400 truncate">{{ lead.company.domain }}</div>
                     </div>
+                    @if (assigneeBadge(lead); as badge) {
+                      <span class="w-5 h-5 rounded-full bg-indigo-500/30 text-indigo-200 text-[10px] font-bold flex items-center justify-center shrink-0"
+                            role="img" data-testid="assignee-badge"
+                            [attr.aria-label]="badge.label" [attr.title]="badge.label">{{ badge.initial }}</span>
+                    }
                     <!-- Score pill -->
                     <span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
                           [class]="lead.score >= 80 ? 'bg-emerald-500/20 text-emerald-400' : lead.score >= 60 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-slate-700 text-slate-400'">
@@ -123,6 +130,7 @@ export class PipelineComponent {
   private store = inject(Store);
   readonly stages = STAGES;
   readonly hoveredId = signal<string | null>(null);
+  private readonly me = inject(CrmDataSource).currentUser();
 
   readonly allLeads = toSignal(this.store.select(selectFilteredLeads), { initialValue: [] as Lead[] });
 
@@ -141,6 +149,12 @@ export class PipelineComponent {
 
   leadsFor(stage: PipelineStage): Lead[] {
     return this.byStage().get(stage) ?? [];
+  }
+
+  /** Owner initial for the card; null for unassigned leads. */
+  assigneeBadge(lead: Lead): { initial: string; label: string } | null {
+    const initial = assigneeInitial(lead.assigneeId, this.me);
+    return initial ? { initial, label: assigneeLabel(lead.assigneeId, this.me.id) } : null;
   }
 
   selectLead(lead: Lead): void {

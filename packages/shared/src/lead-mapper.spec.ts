@@ -74,4 +74,13 @@ describe('toLeadDto', () => {
       updatedAt: '2026-01-02T03:04:05.000Z',
     });
   });
+
+  it('omits assigneeId when the row has none (backward compatible shape)', () => {
+    expect('assigneeId' in toLeadDto(lead, company)).toBe(false);
+  });
+
+  it('carries the assignee, including null for unassigned leads', () => {
+    expect(toLeadDto({ ...lead, assigneeId: 'u1' }, company).assigneeId).toBe('u1');
+    expect(toLeadDto({ ...lead, assigneeId: null }, company).assigneeId).toBeNull();
+  });
 });

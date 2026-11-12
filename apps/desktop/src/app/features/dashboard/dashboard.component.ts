@@ -11,6 +11,7 @@ import { ElectronService } from '../../core/services/electron.service';
 import { MetricsDataSource } from '../../core/data/metrics.data-source';
 import { RealtimeService } from '../../core/realtime/realtime.service';
 import { DATA_MODE } from '../../core/config/app-environment';
+import { MyTasksCardComponent } from '../../shared/components/crm/my-tasks-card.component';
 import { StatCardComponent } from '../../shared/components/stat-card/stat-card.component';
 import { RelativeTimePipe } from '../../shared/pipes/relative-time.pipe';
 import {
@@ -29,7 +30,7 @@ const SOURCE_ICONS: Record<string, string> = {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [DecimalPipe, StatCardComponent, RelativeTimePipe],
+  imports: [DecimalPipe, StatCardComponent, RelativeTimePipe, MyTasksCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="p-6 space-y-6 max-w-[1400px] mx-auto">
@@ -163,6 +164,9 @@ const SOURCE_ICONS: Record<string, string> = {
           </div>
         </div>
       </div>
+
+      <!-- My tasks (CRM) -->
+      <app-my-tasks-card />
 
       <!-- Bottom row: Active jobs + Activity feed -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">

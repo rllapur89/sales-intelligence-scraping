@@ -24,6 +24,7 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge/statu
 import { SkeletonComponent } from '../../shared/components/skeleton/skeleton.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { RelativeTimePipe } from '../../shared/pipes/relative-time.pipe';
+import { LeadCrmPanelComponent } from '../../shared/components/crm/lead-crm-panel.component';
 import { AddLeadModalComponent } from './add-lead-modal/add-lead-modal.component';
 import { HighlightDirective } from '../../shared/directives/highlight.directive';
 
@@ -35,7 +36,8 @@ const MAX_SIGNAL_CHIPS = 3;
   imports: [
     DecimalPipe, FormsModule,
     ScrollingModule, StatusBadgeComponent, SkeletonComponent,
-    EmptyStateComponent, RelativeTimePipe, AddLeadModalComponent, HighlightDirective
+    EmptyStateComponent, RelativeTimePipe, AddLeadModalComponent, HighlightDirective,
+    LeadCrmPanelComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -389,6 +391,9 @@ const MAX_SIGNAL_CHIPS = 3;
                 <div class="text-xs text-slate-500">No signals to show.</div>
               }
             </div>
+
+            <!-- CRM: notes, activity, tasks, owner -->
+            <app-lead-crm-panel [lead]="lead" />
 
             <!-- Actions -->
             <div class="space-y-2 pt-2">

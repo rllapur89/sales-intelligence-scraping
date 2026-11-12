@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuthModule } from './auth/auth.module';
+import { CrmModule } from './crm/crm.module';
 import { validateEnv } from './config/env';
 import { HealthController } from './health/health.controller';
 import { JobsModule } from './jobs/jobs.module';
@@ -24,6 +25,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     QueueModule,
     AuthModule,
     LeadsModule,
+    CrmModule,
     JobsModule,
     MetricsModule,
     AnalyticsModule,
