@@ -10,7 +10,8 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   // Express 5 defaults to the simple parser; filters like `industry[]=a` need the extended one.
   app.set('query parser', 'extended');
-  app.setGlobalPrefix('api');
+  // Prometheus scrapes `/metrics` without the prefix; `metrics/summary` stays under `/api`.
+  app.setGlobalPrefix('api', { exclude: ['metrics'] });
   app.enableShutdownHooks();
   const corsOrigin = process.env['CORS_ORIGIN'] ?? 'http://localhost:4200';
   app.enableCors({ origin: corsOrigin });

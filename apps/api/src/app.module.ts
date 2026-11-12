@@ -9,6 +9,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { TelemetryModule } from './telemetry/telemetry.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
@@ -25,6 +26,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     JobsModule,
     MetricsModule,
     SubscriptionsModule,
+    TelemetryModule,
     RealtimeModule,
   ],
   controllers: [HealthController],
