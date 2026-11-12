@@ -56,8 +56,18 @@ export interface LatencyAck {
   timings: EventTimings;
 }
 
+/**
+ * Sent when leads the socket holds stop matching its user's subscriptions. `seq` is the highest
+ * event sequence of the window that caused it, so the client can advance its `lastSeq`.
+ */
+export interface LeadsRetracted {
+  leadIds: string[];
+  seq: number;
+}
+
 export interface ServerToClientEvents {
   'leads:batch': (batch: LeadBatch) => void;
+  'leads:retracted': (retraction: LeadsRetracted) => void;
   'leads:resync-required': (info: { currentSeq: number }) => void;
 }
 
