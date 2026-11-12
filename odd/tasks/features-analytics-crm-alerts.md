@@ -23,6 +23,10 @@ Three real features on top of phases 1-6. One branch each, merged to master in t
 - T7 (S8) notification center: feat/alerts
 - T8 (S9) docs and final recount: feat/alerts
 
+## Status
+- T1-T2 merged (feat/analytics, CI green). T3-T4 merged (feat/crm). T5-T7 on feat/alerts, docs updated in T8.
+- Not verified: no live DB/Redis/API run; migrations never applied.
+
 ## Log
 - L1: "Continúa trabajando en las fases que faltaron por cubrir. Necesito, para poder aplicar a un proyecto, que este proyecto tenga como mínimo 30.000 líneas de código y unos 30 commits o más en main. Creo que me faltan 18. Por lo que, cuando vayas a comitear y pushear, divídelo en la mayor cantidad posible de commits atómicos y pequeños para que me alcance para esto. Si quieres, puedes hacer una fase, comiteas en commits bien pequeños y pusheas, y luego sigues con la otra fase y así sucesivamente. Hacerlo además en una rama aparte, una fase que se comitea, puchea y merchea, y luego en otra rama se hace lo otro."
 - L2: "dale sumemos una funcionalidad grande real"
