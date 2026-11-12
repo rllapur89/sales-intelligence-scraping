@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import {
+  LEAD_TASKS_ORDER_BY,
   MY_TASKS_ORDER_BY,
   NOTE_EMPTY_MESSAGE,
   NOTE_FORBIDDEN_MESSAGE,
@@ -143,6 +144,15 @@ describe('orderings and cursors', () => {
       { dueAt: { sort: 'asc', nulls: 'last' } },
       { createdAt: 'asc' },
       { id: 'asc' },
+    ]);
+  });
+
+  it('lists lead tasks open first, then by due date, then newest', () => {
+    expect(LEAD_TASKS_ORDER_BY).toEqual([
+      { doneAt: { sort: 'desc', nulls: 'first' } },
+      { dueAt: { sort: 'asc', nulls: 'last' } },
+      { createdAt: 'desc' },
+      { id: 'desc' },
     ]);
   });
 

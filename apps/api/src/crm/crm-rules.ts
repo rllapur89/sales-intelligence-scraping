@@ -123,6 +123,14 @@ export const MY_TASKS_ORDER_BY: Prisma.LeadTaskOrderByWithRelationInput[] = [
   { id: 'asc' },
 ];
 
+/** Tasks of one lead: open ones first (by due date, nulls last), then done ones, newest first. */
+export const LEAD_TASKS_ORDER_BY: Prisma.LeadTaskOrderByWithRelationInput[] = [
+  { doneAt: { sort: 'desc', nulls: 'first' } },
+  { dueAt: { sort: 'asc', nulls: 'last' } },
+  { createdAt: 'desc' },
+  { id: 'desc' },
+];
+
 /** Newest first, id as tie-breaker (matches the (leadId, createdAt desc, id desc) index). */
 export const ACTIVITY_ORDER_BY: Prisma.LeadActivityOrderByWithRelationInput[] = [
   { createdAt: 'desc' },
