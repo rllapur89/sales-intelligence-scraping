@@ -4,10 +4,11 @@ Angular 21 + Electron desktop client, a NestJS API with a Socket.IO gateway, Bul
 scrape **public** sources for **companies with buying signals** (hiring, filings, open source
 activity), PostgreSQL for persistence and Redis for queues and fan-out.
 
-> **Status: phases 1-4 of 6 done.** Six sources are scraped (Greenhouse, Lever, RemoteOK, GitHub, SEC EDGAR,
+> **Status: phases 1-6 implemented; phase 5 measurements have not been run yet.** Six sources are scraped (Greenhouse, Lever, RemoteOK, GitHub, SEC EDGAR,
 > website enrichment), scored, persisted, exposed over authenticated REST and pushed to the desktop client
-> over Socket.IO. Measurement (phase 5) and hardening (phase 6) are not done: see [`docs/TODO.md`](docs/TODO.md)
-> and the [roadmap](#roadmap).
+> over Socket.IO. Metrics, a load test runner, a grid benchmark, an offline cache and ADRs exist; the load test
+> and grid benchmark have not been run, so there are no latency or FPS figures yet. See
+> [`docs/benchmarks.md`](docs/benchmarks.md), [`docs/TODO.md`](docs/TODO.md) and the [roadmap](#roadmap).
 
 Repository: <https://github.com/rllapur89/sales-intelligence-scraping>
 
@@ -130,7 +131,7 @@ one transaction per company, appends a `LeadEvent` (the sequence number) and pub
 - **Batching and filters:** every API instance listens to the Redis `leads:events` channel, buffers `GATEWAY_BATCH_WINDOW_MS` (200 ms), coalesces per lead id and sends each user only leads matching their active subscriptions (industry, region, signal type, minimum score). A user with no active subscription receives nothing; the seed creates an "All leads" one per demo user.
 - **Backpressure:** a socket whose outbound buffer is not drained keeps one pending entry per lead id (newest wins) instead of queueing batches.
 - **Resync:** the client sends `leads:resync { lastSeq }` on connect. The server replays missed deltas from the `LeadEvent` table (with a 100-event overlap, because autoincrement ids can become visible out of commit order and the client ignores older versions) or answers `full` (`unknown-seq`, `gap-too-large`) so the client reloads a REST snapshot.
-- **Latency acks:** the client samples rendered batches and sends `latency:ack`; for now they only feed an in-memory counter. Histograms arrive in phase 5.
+- **Latency acks:** the client samples rendered batches and sends `latency:ack`; the API records them in the `leads_pipeline_latency_seconds` histogram (see [`docs/metrics.md`](docs/metrics.md)).
 
 ### Desktop modes
 
@@ -165,9 +166,11 @@ hiring `15·log2(1 + Σ recency weight)`, filing 25 (30 days) or 10 (90 days), o
 
 ## Measurements
 
-Not available yet: phase 5 is not done (see [`docs/TODO.md`](docs/TODO.md)). When published, every figure in `docs/benchmarks.md` will come from
-**local load tests of this project** (Artillery with 1,000 Socket.IO clients and a synthetic
-~500 events/s publisher; a Playwright 50,000-row grid benchmark), not from production traffic.
+Not available yet: the tools exist but have not been run (no Docker or Chromium was available when they
+were written). [`docs/benchmarks.md`](docs/benchmarks.md) explains how to produce the numbers. When it is
+filled in, every figure will come from **local runs of this project** (`tools/loadtest` with 1,000
+Socket.IO clients and a synthetic ~500 events/s publisher; `tools/grid-benchmark` with 50,000 rows), not
+from production traffic.
 
 ## Quality
 
@@ -192,8 +195,8 @@ defined in `.github/workflows/ci.yml` (install, lint, format check, typecheck, t
 2. First real source end to end: Greenhouse + Lever, per-source queues, ingestion, REST, job tracking (this phase).
 3. Realtime: Socket.IO gateway, JWT auth, Redis adapter, batching, filters, resync; desktop on live data, mock mode kept (this phase).
 4. Remaining sources, scoring, subscriptions UI, backpressure (done; subscriptions UI and backpressure landed in phase 3).
-5. Measurement: Prometheus metrics, Grafana dashboard, Artillery, Playwright benchmark. **TODO**, see `docs/TODO.md`.
-6. Hardening: Electron offline cache and memory work, ADRs, final README pass. **TODO**, see `docs/TODO.md`.
+5. Measurement: Prometheus metrics, Grafana dashboard, load test runner, grid benchmark (implemented; **runs pending**, see `docs/benchmarks.md`).
+6. Hardening: offline snapshot cache, ADRs, worker presence check, shared mapper, CI integration job (done); Electron heap snapshots and packaging re-check still **TODO**, see `docs/TODO.md`.
 
 ## Original desktop demo
 

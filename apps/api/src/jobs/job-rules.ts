@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import {
   SOURCE_POLICIES,
   type JobStatus,
@@ -28,6 +32,16 @@ export function assertRetryable(status: JobStatus): void {
 export function assertSourceReviewed(source: SourceKey): void {
   if (!SOURCE_POLICIES[source].reviewed) {
     throw new BadRequestException(`Source "${source}" has not been reviewed yet`);
+  }
+}
+
+/**
+ * A reviewed source can still have no worker (a missing `requiredEnv`, or the workers are down).
+ * Queueing then would leave the job `queued` forever, so the API answers 503 instead.
+ */
+export function assertWorkerPresent(source: SourceKey, present: boolean): void {
+  if (!present) {
+    throw new ServiceUnavailableException(`No worker is running for source "${source}"`);
   }
 }
 

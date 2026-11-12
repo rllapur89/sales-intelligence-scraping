@@ -1,7 +1,9 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type { Redis } from 'ioredis';
 import { Prisma } from '@leads/db';
 import {
   SOURCE_POLICIES,
+  workerPresenceKey,
   fromDbSourceKey,
   toDbSourceKey,
   type Page,
@@ -12,11 +14,12 @@ import { decodeCursor, encodeCursor } from '../common/cursor';
 import { fromDbJobStatus, toJobDto } from '../common/mappers';
 import { sliceKeysetPage } from '../leads/lead-query';
 import { PrismaService } from '../prisma/prisma.service';
-import { SCRAPE_QUEUES, type ScrapeQueues } from '../queue/queue.module';
+import { REDIS_CONNECTION, SCRAPE_QUEUES, type ScrapeQueues } from '../queue/queue.module';
 import {
   assertCancellable,
   assertRetryable,
   assertSourceReviewed,
+  assertWorkerPresent,
   buildPlanJobOptions,
   buildPlanTaskData,
   slugsFromParams,
@@ -32,6 +35,7 @@ export class JobsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(SCRAPE_QUEUES) private readonly queues: ScrapeQueues,
+    @Inject(REDIS_CONNECTION) private readonly redis: Redis,
   ) {}
 
   async list(query: ListJobsQueryDto): Promise<Page<ScrapingJobDto>> {
@@ -104,6 +108,7 @@ export class JobsService {
 
   private async enqueue(source: SourceKey, slugs?: string[]): Promise<ScrapingJobDto> {
     assertSourceReviewed(source);
+    assertWorkerPresent(source, (await this.redis.exists(workerPresenceKey(source))) === 1);
     const policy = SOURCE_POLICIES[source];
     const dbKey = toDbSourceKey(source) as DbSourceKey;
     const sourceRow = await this.prisma.source.upsert({

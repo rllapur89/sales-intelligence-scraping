@@ -16,6 +16,7 @@ import { validateEnv, type WorkersEnv } from '../config/env';
 import { HttpError } from '../http/http-client';
 import { IngestionService, type EventPublisher } from '../ingestion/ingestion.service';
 import { loadCompaniesConfig } from '../scrapers/companies-config';
+import { PresenceHeartbeat } from '../presence/presence-heartbeat';
 import { PrismaScrapeJobStore } from '../scraping/job-store';
 import { ScrapeTaskHandler } from '../scraping/scrape-task.handler';
 import { jitteredBackoffMs } from './backoff';
@@ -43,6 +44,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private readonly queues = new Map<string, Queue>();
   private readonly telemetry = new WorkersTelemetry();
   private metricsServer: Server | null = null;
+  private heartbeat: PresenceHeartbeat | null = null;
 
   async onModuleInit(): Promise<void> {
     this.env = validateEnv(process.env);
@@ -57,6 +59,12 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       this.metricsServer = await startMetricsServer(this.telemetry.registry, metricsPort);
       this.logger.log(`Metrics on :${metricsPort}/metrics`);
     }
+
+    this.heartbeat = new PresenceHeartbeat(
+      (key, ttl) => this.publisherRedis.set(key, '1', 'EX', ttl),
+      (err) => this.logger.warn(`Presence heartbeat failed: ${String(err)}`),
+    );
+    this.heartbeat.start();
 
     const scrapers = buildScrapers(this.env, {
       onWebsiteSkip: (reason, target) =>
@@ -141,6 +149,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       );
       worker.on('error', (err) => this.logger.error(`${source} worker error: ${err.message}`));
       this.workers.push(worker);
+      this.heartbeat.add(source);
       this.logger.log(
         `Source ${source}: worker up (limiter ${policy.limiter.max}/${policy.limiter.durationMs} ms, concurrency ${policy.concurrency})`,
       );
@@ -183,6 +192,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     await Promise.all(this.workers.map((w) => w.close()));
     await Promise.all([...this.queues.values()].map((q) => q.close()));
+    this.heartbeat?.stop();
     if (this.metricsServer) await stopMetricsServer(this.metricsServer);
     await this.prisma?.$disconnect();
     this.redis?.disconnect();

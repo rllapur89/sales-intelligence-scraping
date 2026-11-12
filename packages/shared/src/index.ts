@@ -2,3 +2,5 @@ export * from './sources';
 export * from './domain';
 export * from './events';
 export * from './scraping';
+export * from './worker-presence';
+export * from './lead-mapper';

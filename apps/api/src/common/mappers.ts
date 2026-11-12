@@ -1,6 +1,8 @@
 import type { Company, Lead, ScrapingJob, Signal, Source, $Enums } from '@leads/db';
 import {
   fromDbSourceKey,
+  toCompanyDto as sharedToCompanyDto,
+  toLeadDto as sharedToLeadDto,
   type CompanyDto,
   type CompanySize,
   type JobStatus,
@@ -68,31 +70,10 @@ export const fromDbJobStatus = (s: DbJobStatus): JobStatus => STATUS_FROM_DB[s];
 export const toDbSize = (s: CompanySize): DbSize => SIZE_TO_DB[s];
 export const fromDbSize = (s: DbSize): CompanySize => SIZE_FROM_DB[s];
 
-export function toCompanyDto(company: Company): CompanyDto {
-  return {
-    id: company.id,
-    domain: company.domain,
-    name: company.name,
-    industry: company.industry,
-    region: company.region,
-    size: company.size === null ? null : fromDbSize(company.size),
-    description: company.description,
-    techHints: company.techHints,
-  };
-}
+export const toCompanyDto = (company: Company): CompanyDto => sharedToCompanyDto(company);
 
-export function toLeadDto(lead: Lead & { company: Company }): LeadDto {
-  return {
-    id: lead.id,
-    company: toCompanyDto(lead.company),
-    score: lead.score,
-    stage: fromDbStage(lead.stage),
-    signalTypes: lead.signalTypes.map(fromDbSignalType),
-    signalCount: lead.signalCount,
-    seq: Number(lead.seq),
-    updatedAt: lead.updatedAt.toISOString(),
-  };
-}
+export const toLeadDto = (lead: Lead & { company: Company }): LeadDto =>
+  sharedToLeadDto(lead, lead.company);
 
 export function toSignalDto(signal: Signal & { source: Source }): SignalDto {
   return {

@@ -20,5 +20,11 @@ Finish the pending phases of docs/TODO.md. One branch per phase slice, small ato
 - T6 (S6) ADRs: feat/phase6-adrs
 - T7 (S7) Known gaps: feat/phase6-known-gaps
 
+## Status
+- T1-T3 merged (feat/phase5-api-metrics). T4 merged (feat/phase5-loadtest, feat/phase5-grid-benchmark; tools never run).
+- T5 merged (feat/phase6-offline-cache). T6 merged (feat/phase6-adrs).
+- T7 on feat/phase6-known-gaps: worker presence, CI integration job, shared mapper. Not done: lead retraction, bundle budget.
+- Slice boundaries: each branch above is one delivery slice (over 400 lines for the larger ones, split in small commits).
+
 ## Log
 - L1: "Continúa trabajando en las fases que faltaron por cubrir. Necesito, para poder aplicar a un proyecto, que este proyecto tenga como mínimo 30.000 líneas de código y unos 30 commits o más en main. Creo que me faltan 18. Por lo que, cuando vayas a comitear y pushear, divídelo en la mayor cantidad posible de commits atómicos y pequeños para que me alcance para esto. Si quieres, puedes hacer una fase, comiteas en commits bien pequeños y pusheas, y luego sigues con la otra fase y así sucesivamente. Hacerlo además en una rama aparte, una fase que se comitea, puchea y merchea, y luego en otra rama se hace lo otro."
