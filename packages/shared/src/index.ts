@@ -5,3 +5,4 @@ export * from './scraping';
 export * from './worker-presence';
 export * from './lead-mapper';
 export * from './analytics';
+export * from './crm';
