@@ -1,0 +1,16 @@
+{
+  "name": "@leads/grid-benchmark",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright benchmark of the virtual-scroll leads grid: FPS and JS heap",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/run.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.19",
+    "vitest": "^4.0.8"
+  }
+}
