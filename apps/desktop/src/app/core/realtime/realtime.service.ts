@@ -1,7 +1,13 @@
 import { Injectable, InjectionToken, inject, signal } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { io } from 'socket.io-client';
-import type { LatencyAck, LeadBatch, ResyncRequest, ResyncResponse } from '@leads/shared';
+import type {
+  LatencyAck,
+  LeadBatch,
+  LeadsRetracted,
+  ResyncRequest,
+  ResyncResponse,
+} from '@leads/shared';
 import { ENVIRONMENT } from '../config/app-environment';
 import { AuthService } from '../auth/auth.service';
 import { RealtimeStatus } from '../models/connection.model';
@@ -17,6 +23,7 @@ export interface RealtimeSocket {
   on(event: 'disconnect', cb: (reason: string) => void): void;
   on(event: 'connect_error', cb: (err: Error) => void): void;
   on(event: 'leads:batch', cb: (batch: LeadBatch) => void): void;
+  on(event: 'leads:retracted', cb: (retraction: LeadsRetracted) => void): void;
   on(event: 'leads:resync-required', cb: (info: { currentSeq: number }) => void): void;
   emit(event: 'leads:resync', req: ResyncRequest, ack: (res: ResyncResponse) => void): void;
   emit(event: 'latency:ack', acks: LatencyAck[]): void;
@@ -122,6 +129,9 @@ export class RealtimeService {
     socket.on('connect_error', err => this.onConnectError(socket, err));
     socket.on('leads:batch', batch => {
       this.store.dispatch(LeadsActions.upsertBatch({ batch, origin: 'live' }));
+    });
+    socket.on('leads:retracted', ({ leadIds, seq }) => {
+      this.store.dispatch(LeadsActions.retractLeads({ leadIds, seq }));
     });
     socket.on('leads:resync-required', () => this.resync());
     socket.io.on('reconnect_attempt', () => this.setStatus('reconnecting'));
