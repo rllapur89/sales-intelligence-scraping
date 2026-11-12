@@ -61,6 +61,8 @@ export interface LeadDto {
   /** Sequence number of the last event that touched this lead. */
   seq: number;
   updatedAt: string;
+  /** CRM owner (user id). Absent in payloads that predate the CRM; null when unassigned. */
+  assigneeId?: string | null;
 }
 
 export interface ScrapingJobDto {

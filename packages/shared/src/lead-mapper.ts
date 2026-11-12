@@ -25,6 +25,8 @@ export interface DbLeadRow {
   signalCount: number;
   seq: bigint;
   updatedAt: Date;
+  /** Optional so rows selected without the column (workers) keep mapping. */
+  assigneeId?: string | null;
 }
 
 /** `OSS_ACTIVITY` -> `oss-activity`, `MID_MARKET` -> `mid-market`. */
@@ -59,5 +61,6 @@ export function toLeadDto(lead: DbLeadRow, company: DbCompanyRow): LeadDto {
     signalCount: lead.signalCount,
     seq: Number(lead.seq),
     updatedAt: lead.updatedAt.toISOString(),
+    ...(lead.assigneeId !== undefined && { assigneeId: lead.assigneeId }),
   };
 }
