@@ -87,6 +87,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       id: socket.id,
       userId: user.id,
       emitBatch: (batch) => socket.emit('leads:batch', batch),
+      emitRetracted: (retraction) => socket.emit('leads:retracted', retraction),
       isDrained: () => engineBufferSize(socket) <= threshold,
     };
     this.hub.register(client);

@@ -164,6 +164,19 @@ hiring `15·log2(1 + Σ recency weight)`, filing 25 (30 days) or 10 (90 days), o
 (new repo 8, release 5), funding up to 20, website-tech 5, +10 per extra live signal type. Recency weight:
 1 up to 14 days, 0.5 up to 30, 0.2 up to 90, then 0.
 
+## Analytics, CRM and alerts
+
+- **Analytics and reports:** funnel, leads by source and industry, signal mix and score trend, served by
+  `GET /api/analytics/*` and shown as SVG charts with CSV and JSON export (see [`docs/analytics.md`](docs/analytics.md)).
+- **CRM:** notes, tasks, an activity timeline and lead assignment, in the lead detail panel, the dashboard
+  and the Kanban (see [`docs/crm.md`](docs/crm.md)).
+- **Alerts:** a lead that stops matching a subscription is retracted from the clients that hold it, and
+  subscriptions with `notify` create notifications shown in a bell in the header (see
+  [`docs/alerts.md`](docs/alerts.md) and [ADR 0005](docs/adr/0005-lead-retraction.md)).
+
+None of these was run against a live database yet: they are covered by unit and component tests, and the
+two migrations (`crm`, `notifications`) were written by hand and only validated with `prisma validate`.
+
 ## Measurements
 
 Not available yet: the tools exist but have not been run (no Docker or Chromium was available when they

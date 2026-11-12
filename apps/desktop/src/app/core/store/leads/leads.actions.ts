@@ -38,6 +38,8 @@ export const LeadsActions = createActionGroup({
     // Realtime
     /** One live (or replayed) batch from the gateway: a single dispatch, no per-row work. */
     'Upsert Batch': props<{ batch: LeadBatch; origin?: 'live' | 'resync' }>(),
+    /** The hub says these leads no longer match the user's subscriptions: drop them (live mode). */
+    'Retract Leads': props<{ leadIds: string[]; seq: number }>(),
     'Reset Seq': props<{ lastSeq: number }>(),
     'Set Connection': props<{ status: RealtimeStatus }>(),
     'Clear Changed': emptyProps(),

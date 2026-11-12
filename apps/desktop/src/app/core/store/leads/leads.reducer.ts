@@ -2,7 +2,7 @@ import { createReducer, on } from '@ngrx/store';
 import { LeadsActions } from './leads.actions';
 import { leadsAdapter, initialLeadsState } from './leads.state';
 import { DEFAULT_FILTER } from '../../models/lead.model';
-import { appendChangedIds, maxSeq, mergeSnapshot, pickFreshLeads } from './leads.batch';
+import { appendChangedIds, maxSeq, mergeSnapshot, pickFreshLeads, retractableIds } from './leads.batch';
 
 export const leadsReducer = createReducer(
   initialLeadsState,
@@ -129,6 +129,22 @@ export const leadsReducer = createReducer(
       lastUpdated: new Date(),
       lastSeq,
       changedIds: appendChangedIds(state.changedIds, fresh.map(l => l.id)),
+    };
+  }),
+
+  on(LeadsActions.retractLeads, (state, { leadIds, seq }) => {
+    const lastSeq = Math.max(state.lastSeq, seq);
+    const removed = retractableIds(state.entities, leadIds, seq);
+    if (!removed.length) return lastSeq === state.lastSeq ? state : { ...state, lastSeq };
+    const gone = new Set(removed);
+    const next = leadsAdapter.removeMany(removed, state);
+    return {
+      ...next,
+      totalCount: next.ids.length,
+      lastSeq,
+      selection: { ...state.selection, ids: state.selection.ids.filter(id => !gone.has(id)) },
+      // A removed row must not flash.
+      changedIds: state.changedIds.filter(id => !gone.has(id)),
     };
   }),
 

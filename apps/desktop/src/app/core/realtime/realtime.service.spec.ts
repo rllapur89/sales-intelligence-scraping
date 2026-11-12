@@ -151,6 +151,32 @@ describe('RealtimeService', () => {
     expect(count).toBe(500);
   });
 
+  it('dispatches retractLeads for leads:retracted and removes the leads from the store', () => {
+    store.dispatch(
+      LeadsActions.loadLeadsSuccess({
+        leads: [makeLead({ id: 'a', seq: 1 }), makeLead({ id: 'b', seq: 2 })],
+      })
+    );
+    service.start();
+    socket.serverConnects();
+    const dispatch = vi.spyOn(store, 'dispatch');
+    socket.fire('leads:retracted', { leadIds: ['a'], seq: 9 });
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(LeadsActions.retractLeads({ leadIds: ['a'], seq: 9 }));
+    let ids: string[] = [];
+    store
+      .select(selectAllLeads)
+      .subscribe(l => (ids = l.map(x => x.id)))
+      .unsubscribe();
+    expect(ids).toEqual(['b']);
+    let seq = 0;
+    store
+      .select(selectLastSeq)
+      .subscribe(v => (seq = v))
+      .unsubscribe();
+    expect(seq).toBe(9);
+  });
+
   it('on connect sends leads:resync with the store lastSeq', () => {
     store.dispatch(LeadsActions.loadLeadsSuccess({ leads: [makeLead({ id: 'a', seq: 41 })] }));
     service.start();

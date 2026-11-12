@@ -70,6 +70,11 @@ enum ActivityType {
   TASK_COMPLETED
 }
 
+enum NotificationType {
+  NEW_MATCH
+  RETRACTED
+}
+
 /// Source configuration and health. Rate-limit values mirror the queue limiter of that source.
 model Source {
   id                  String       @id @default(cuid())
@@ -148,12 +153,13 @@ model Lead {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  assignee   User?          @relation("LeadAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  events     LeadEvent[]
-  notes      LeadNote[]
-  tasks      LeadTask[]
-  activities LeadActivity[]
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignee      User?          @relation("LeadAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  events        LeadEvent[]
+  notes         LeadNote[]
+  tasks         LeadTask[]
+  activities    LeadActivity[]
+  notifications Notification[]
 
   // Keyset pagination (score desc, id desc) and (updatedAt desc, id desc).
   @@index([score(sort: Desc), id(sort: Desc)])
@@ -226,6 +232,7 @@ model User {
   createdTasks  LeadTask[]     @relation("TaskCreator")
   assignedTasks LeadTask[]     @relation("TaskAssignee")
   activities    LeadActivity[]
+  notifications Notification[]
 }
 
 /// Filter definition per user; empty arrays mean "any".
@@ -238,6 +245,8 @@ model Subscription {
   regions     String[]     @default([])
   signalTypes SignalType[] @default([])
   minScore    Int          @default(0)
+  /// Create an in-app notification when a lead newly matches with a high score.
+  notify      Boolean      @default(false)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -292,4 +301,23 @@ model LeadActivity {
   actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([leadId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+/// In-app notification of a user about a lead. `title` is the company name only (no personal data).
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  leadId    String
+  title     String
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // Keyset listing (createdAt desc, id desc), unread count, and the 24 h dedupe lookup.
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, readAt])
+  @@index([userId, leadId, type, createdAt(sort: Desc)])
 }

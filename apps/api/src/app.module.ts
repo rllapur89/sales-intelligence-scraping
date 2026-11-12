@@ -8,6 +8,7 @@ import { HealthController } from './health/health.controller';
 import { JobsModule } from './jobs/jobs.module';
 import { LeadsModule } from './leads/leads.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
 import { RealtimeModule } from './realtime/realtime.module';
@@ -30,6 +31,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     MetricsModule,
     AnalyticsModule,
     SubscriptionsModule,
+    NotificationsModule,
     TelemetryModule,
     RealtimeModule,
   ],
