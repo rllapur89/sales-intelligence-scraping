@@ -10,6 +10,7 @@ import {
   type ScrapeTaskData,
 } from '@leads/shared';
 import { Queue, Worker, type Job } from 'bullmq';
+import type { Server } from 'node:http';
 import { Redis } from 'ioredis';
 import { validateEnv, type WorkersEnv } from '../config/env';
 import { HttpError } from '../http/http-client';
@@ -18,6 +19,12 @@ import { loadCompaniesConfig } from '../scrapers/companies-config';
 import { PrismaScrapeJobStore } from '../scraping/job-store';
 import { ScrapeTaskHandler } from '../scraping/scrape-task.handler';
 import { jitteredBackoffMs } from './backoff';
+import {
+  readMetricsPort,
+  startMetricsServer,
+  stopMetricsServer,
+} from '../telemetry/metrics-server';
+import { WorkersTelemetry } from '../telemetry/workers-telemetry';
 import { buildScrapers, decideSources, resolveTargets } from './source-registry';
 
 /**
@@ -34,6 +41,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private prisma!: PrismaClient;
   private readonly workers: Worker[] = [];
   private readonly queues = new Map<string, Queue>();
+  private readonly telemetry = new WorkersTelemetry();
+  private metricsServer: Server | null = null;
 
   async onModuleInit(): Promise<void> {
     this.env = validateEnv(process.env);
@@ -42,6 +51,12 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     this.publisherRedis = new Redis(this.env.redisUrl);
     this.prisma = new PrismaClient();
     await this.prisma.$connect();
+
+    const metricsPort = readMetricsPort(process.env['WORKERS_METRICS_PORT']);
+    if (metricsPort !== null) {
+      this.metricsServer = await startMetricsServer(this.telemetry.registry, metricsPort);
+      this.logger.log(`Metrics on :${metricsPort}/metrics`);
+    }
 
     const scrapers = buildScrapers(this.env, {
       onWebsiteSkip: (reason, target) =>
@@ -79,6 +94,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         scrapers,
         jobs: new PrismaScrapeJobStore(this.prisma),
         policyFor: (s) => SOURCE_POLICIES[s],
+        observer: this.telemetry,
         loadTargets: (s, slugs) => resolveTargets(s, targetSources, slugs),
         enqueueCompany: async (task) => {
           await queue.add(`company:${task.target.slug}`, task, {
@@ -136,6 +152,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       INGESTION_QUEUE,
       async (job) => {
         const summary = await service.ingest(job.data);
+        this.telemetry.ingestionResult(summary.failedDomains.length > 0 ? 'error' : 'ok');
         if (summary.failedDomains.length > 0) {
           // Ingestion is idempotent (signals dedupe on source + externalId), so retrying is safe.
           throw new Error(`Ingestion failed for: ${summary.failedDomains.join(', ')}`);
@@ -166,6 +183,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     await Promise.all(this.workers.map((w) => w.close()));
     await Promise.all([...this.queues.values()].map((q) => q.close()));
+    if (this.metricsServer) await stopMetricsServer(this.metricsServer);
     await this.prisma?.$disconnect();
     this.redis?.disconnect();
     this.publisherRedis?.disconnect();

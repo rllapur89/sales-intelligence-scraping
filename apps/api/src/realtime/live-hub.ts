@@ -17,6 +17,7 @@ import {
 } from '@leads/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { REDIS_CONNECTION } from '../queue/queue.module';
+import { TelemetryService } from '../telemetry/telemetry.service';
 import { toSubscriptionFilter } from '../subscriptions/subscriptions.service';
 import { EventBatcher, type CoalescedWindow } from './coalescer';
 import { matchesAny } from './match-filter';
@@ -64,6 +65,7 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly resyncService: ResyncService,
     private readonly config: ConfigService,
+    private readonly telemetry: TelemetryService,
     @Inject(REDIS_CONNECTION) private readonly redis: Redis,
   ) {}
 
@@ -75,7 +77,12 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
     subscriber.on('message', (channel: string, message: string) => {
       if (channel === LEAD_EVENTS_CHANNEL) {
         const event = parseLeadEvent(message);
-        if (event) this.batcher?.add(event);
+        if (event) {
+          this.telemetry.countEvent();
+          this.batcher?.add(event);
+        } else {
+          this.telemetry.countInvalidEvent();
+        }
       } else if (channel === SUBSCRIPTIONS_CHANGED_CHANNEL) {
         void this.refreshUser(message);
       }
@@ -111,11 +118,13 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
       (err: unknown) => this.logger.warn(`Loading subscriptions failed: ${String(err)}`),
     );
     this.sessions.set(client.id, session);
+    this.telemetry.setSockets(this.sessions.size);
   }
 
   unregister(clientId: string): void {
     this.sessions.get(clientId)?.outbox.dispose();
     this.sessions.delete(clientId);
+    this.telemetry.setSockets(this.sessions.size);
   }
 
   async resync(clientId: string, lastSeq: number): Promise<ResyncResponse> {
@@ -146,7 +155,9 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
     const all = [...window.entries.values()];
     for (const session of this.sessions.values()) {
       const visible = all.filter((e) => matchesAny(e.lead, session.filters));
-      if (visible.length > 0) session.outbox.offer(visible, window.fromSeq, window.toSeq);
+      if (visible.length === 0) continue;
+      this.telemetry.observeBatch(visible.length);
+      session.outbox.offer(visible, window.fromSeq, window.toSeq);
     }
   }
 }
