@@ -7,7 +7,16 @@ import {
   MockSubscriptionsDataSource,
   SubscriptionsDataSource,
 } from './subscriptions.data-source';
-import { LiveMetricsDataSource, MetricsDataSource, MockMetricsDataSource } from './metrics.data-source';
+import {
+  AnalyticsDataSource,
+  LiveAnalyticsDataSource,
+  MockAnalyticsDataSource,
+} from './analytics.data-source';
+import {
+  LiveMetricsDataSource,
+  MetricsDataSource,
+  MockMetricsDataSource,
+} from './metrics.data-source';
 
 /** Picks the mock or the REST implementation of every data source from `dataMode`. */
 export function provideDataSources(mode: DataMode): Provider[] {
@@ -20,5 +29,9 @@ export function provideDataSources(mode: DataMode): Provider[] {
       useClass: live ? LiveSubscriptionsDataSource : MockSubscriptionsDataSource,
     },
     { provide: MetricsDataSource, useClass: live ? LiveMetricsDataSource : MockMetricsDataSource },
+    {
+      provide: AnalyticsDataSource,
+      useClass: live ? LiveAnalyticsDataSource : MockAnalyticsDataSource,
+    },
   ];
 }
