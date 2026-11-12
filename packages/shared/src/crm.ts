@@ -128,3 +128,27 @@ export function toActivityDto(row: DbActivityRow): ActivityDto {
     createdAt: row.createdAt.toISOString(),
   };
 }
+
+/** Open task is overdue when it has a due date in the past and is not done. */
+export function isTaskOverdue(task: Pick<TaskDto, 'dueAt' | 'doneAt'>, now: Date): boolean {
+  return task.doneAt === null && task.dueAt !== null && Date.parse(task.dueAt) < now.getTime();
+}
+
+/**
+ * "My tasks" order: earliest due date first, tasks without a due date last, then oldest created,
+ * then id so the order is total and stable. Mirrors the API query ordering.
+ */
+export function compareMyTasks(
+  a: Pick<TaskDto, 'id' | 'dueAt' | 'createdAt'>,
+  b: Pick<TaskDto, 'id' | 'dueAt' | 'createdAt'>,
+): number {
+  if (a.dueAt !== b.dueAt) {
+    if (a.dueAt === null) return 1;
+    if (b.dueAt === null) return -1;
+    const byDue = Date.parse(a.dueAt) - Date.parse(b.dueAt);
+    if (byDue !== 0) return byDue;
+  }
+  const byCreated = Date.parse(a.createdAt) - Date.parse(b.createdAt);
+  if (byCreated !== 0) return byCreated;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
