@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { LeadDto, Page } from '@leads/shared';
+import { CurrentUser } from '../auth/jwt-auth.guard';
+import type { AuthUser } from '../auth/token.service';
 import { ListLeadsQueryDto, UpdateStageDto } from './leads.dto';
 import { LeadsService, type LeadDetailDto } from './leads.service';
 
@@ -24,7 +26,11 @@ export class LeadsController {
 
   @Patch(':id/stage')
   @ApiOperation({ summary: 'Change the pipeline stage of a lead' })
-  updateStage(@Param('id') id: string, @Body() body: UpdateStageDto): Promise<LeadDto> {
-    return this.leads.updateStage(id, body.stage);
+  updateStage(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body: UpdateStageDto,
+  ): Promise<LeadDto> {
+    return this.leads.updateStage(id, body.stage, user.id);
   }
 }

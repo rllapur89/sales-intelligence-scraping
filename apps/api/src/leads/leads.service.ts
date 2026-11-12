@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@leads/db';
 import type { LeadDto, Page, PipelineStage, SignalDto } from '@leads/shared';
-import { toLeadDto, toSignalDto, toDbStage } from '../common/mappers';
+import { toLeadDto, toSignalDto, toDbStage, fromDbStage } from '../common/mappers';
+import { stageChangedActivity, toActivityCreate } from '../crm/crm-rules';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ListLeadsQueryDto } from './leads.dto';
 import { buildLeadListWhere, buildLeadOrderBy, leadCursorFor, sliceKeysetPage } from './lead-query';
 
 export const LEAD_DETAIL_SIGNALS = 50;
+
+const leadNotFoundError = (id: string): NotFoundException =>
+  new NotFoundException(`Lead ${id} not found`);
 
 export type LeadDetailDto = LeadDto & { signals: SignalDto[] };
 
@@ -38,16 +42,36 @@ export class LeadsService {
     return { ...toLeadDto(lead), signals: signals.map(toSignalDto) };
   }
 
-  /** Bumps updatedAt (via @updatedAt) and deliberately writes no LeadEvent (stage is not a live-feed concern). */
-  async updateStage(id: string, stage: PipelineStage): Promise<LeadDto> {
+  /**
+   * Bumps updatedAt (via @updatedAt) and deliberately writes no LeadEvent (stage is not a live-feed
+   * concern). A real change also records `stage_changed` in the same transaction; setting the
+   * current stage again records nothing.
+   */
+  async updateStage(
+    id: string,
+    stage: PipelineStage,
+    actorId: string | null = null,
+  ): Promise<LeadDto> {
     try {
-      const lead = await this.prisma.lead.update({
-        where: { id },
-        data: { stage: toDbStage(stage) },
-        include: { company: true },
+      const lead = await this.prisma.$transaction(async (tx) => {
+        const current = await tx.lead.findUnique({ where: { id }, select: { stage: true } });
+        if (!current) throw leadNotFoundError(id);
+        const updated = await tx.lead.update({
+          where: { id },
+          data: { stage: toDbStage(stage) },
+          include: { company: true },
+        });
+        const from = fromDbStage(current.stage);
+        if (from !== stage) {
+          await tx.leadActivity.create({
+            data: toActivityCreate(id, actorId, stageChangedActivity(from, stage)),
+          });
+        }
+        return updated;
       });
       return toLeadDto(lead);
     } catch (error) {
+      if (error instanceof NotFoundException) throw error;
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException(`Lead ${id} not found`);
       }
