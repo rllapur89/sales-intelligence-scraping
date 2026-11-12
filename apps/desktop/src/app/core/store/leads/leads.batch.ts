@@ -57,3 +57,17 @@ export function appendChangedIds(current: readonly string[], added: readonly str
   const merged = [...new Set([...current, ...added])];
   return merged.length > MAX_CHANGED_IDS ? merged.slice(merged.length - MAX_CHANGED_IDS) : merged;
 }
+
+/**
+ * Ids of `leadIds` that a retraction with `seq` may remove: held, and not newer than the
+ * retraction. A held version with a higher seq arrived after the window that caused the retraction
+ * (for example through a resync), so the retraction is stale for it. Pure.
+ */
+export function retractableIds(held: Dictionary<Lead>, leadIds: readonly string[], seq: number): string[] {
+  const ids: string[] = [];
+  for (const id of leadIds) {
+    const lead = held[id];
+    if (lead && lead.seq <= seq) ids.push(id);
+  }
+  return ids;
+}

@@ -191,6 +191,24 @@ export class LeadsEffects {
     { dispatch: false }
   );
 
+  /** The selected lead was retracted: clear the selection and say why. */
+  retractedSelection$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(LeadsActions.retractLeads),
+      withLatestFrom(this.store.select(selectLeadsState)),
+      filter(
+        ([{ leadIds }, state]) =>
+          state.selectedLeadId !== null &&
+          leadIds.includes(state.selectedLeadId) &&
+          !state.entities[state.selectedLeadId]
+      ),
+      tap(() =>
+        this.toast.show('info', 'Lead removed', 'It no longer matches your subscriptions.')
+      ),
+      map(([, state]) => LeadsActions.deselectLead({ id: state.selectedLeadId! }))
+    )
+  );
+
   /** Highlighted rows fade out a moment after the last live batch. */
   clearChanged$ = createEffect(() =>
     this.actions$.pipe(
