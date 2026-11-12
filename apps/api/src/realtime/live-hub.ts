@@ -11,6 +11,7 @@ import {
   LEAD_EVENTS_CHANNEL,
   SUBSCRIPTIONS_CHANGED_CHANNEL,
   type LeadBatch,
+  type LeadsRetracted,
   type LeadUpsertedEvent,
   type ResyncResponse,
   type SubscriptionFilter,
@@ -19,9 +20,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { REDIS_CONNECTION } from '../queue/queue.module';
 import { TelemetryService } from '../telemetry/telemetry.service';
 import { toSubscriptionFilter } from '../subscriptions/subscriptions.service';
+import { BoundedIdSet, DEFAULT_HELD_LIMIT } from './bounded-id-set';
 import { EventBatcher, type CoalescedWindow } from './coalescer';
-import { matchesAny } from './match-filter';
 import { SocketOutbox } from './outbox';
+import { planDispatch } from './retraction-planner';
 import { readPositiveInt, ResyncService } from './resync.service';
 
 /** Minimal view of a connected socket, so the hub does not depend on socket.io types. */
@@ -29,6 +31,7 @@ export interface LiveClient {
   id: string;
   userId: string;
   emitBatch(batch: LeadBatch): void;
+  emitRetracted(retraction: LeadsRetracted): void;
   isDrained(): boolean;
 }
 
@@ -36,6 +39,8 @@ interface Session {
   client: LiveClient;
   filters: SubscriptionFilter[];
   outbox: SocketOutbox;
+  /** Lead ids this socket was sent and that were not retracted since (bounded, see ADR 0005). */
+  held: BoundedIdSet;
   ready: Promise<void>;
 }
 
@@ -60,6 +65,7 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
   private readonly sessions = new Map<string, Session>();
   private subscriber: Redis | null = null;
   private batcher: EventBatcher | null = null;
+  private readonly heldLimit: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -67,7 +73,9 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     private readonly telemetry: TelemetryService,
     @Inject(REDIS_CONNECTION) private readonly redis: Redis,
-  ) {}
+  ) {
+    this.heldLimit = readPositiveInt(config.get<string>('GATEWAY_HELD_LIMIT'), DEFAULT_HELD_LIMIT);
+  }
 
   async onModuleInit(): Promise<void> {
     const windowMs = readPositiveInt(this.config.get<string>('GATEWAY_BATCH_WINDOW_MS'), 200);
@@ -108,7 +116,9 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
       outbox: new SocketOutbox({
         isDrained: () => client.isDrained(),
         emit: (batch) => client.emitBatch(batch),
+        emitRetracted: (retraction) => client.emitRetracted(retraction),
       }),
+      held: new BoundedIdSet(this.heldLimit),
       ready: Promise.resolve(),
     };
     session.ready = this.loadFilters(client.userId).then(
@@ -131,7 +141,23 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
     const session = this.sessions.get(clientId);
     if (!session) return { mode: 'full', reason: 'unknown-seq', currentSeq: 0 };
     await session.ready;
-    return this.resyncService.resync(lastSeq, session.filters);
+    const response = await this.resyncService.resync(lastSeq, session.filters);
+    this.applyResyncToHeld(session, response);
+    return response;
+  }
+
+  /**
+   * A full resync makes the client reload its snapshot, so nothing it held before is known any
+   * more. A delta resync keeps what the client already has and adds what it now delivers.
+   */
+  private applyResyncToHeld(session: Session, response: ResyncResponse): void {
+    if (response.mode === 'full') {
+      session.held.clear();
+      return;
+    }
+    for (const batch of response.batches) {
+      for (const lead of batch.leads) session.held.add(lead.id);
+    }
   }
 
   /** Reloads the subscriptions of every live socket of this user (this instance only). */
@@ -154,10 +180,19 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
   private dispatch(window: CoalescedWindow): void {
     const all = [...window.entries.values()];
     for (const session of this.sessions.values()) {
-      const visible = all.filter((e) => matchesAny(e.lead, session.filters));
-      if (visible.length === 0) continue;
-      this.telemetry.observeBatch(visible.length);
-      session.outbox.offer(visible, window.fromSeq, window.toSeq);
+      const plan = planDispatch(session.held, all, session.filters);
+      for (const entry of plan.retractions) session.held.delete(entry.lead.id);
+      for (const entry of plan.deliveries) session.held.add(entry.lead.id);
+      if (plan.retractions.length > 0) {
+        session.outbox.offerRetractions(
+          plan.retractions.map((e) => e.lead.id),
+          window.toSeq,
+        );
+      }
+      if (plan.deliveries.length > 0) {
+        this.telemetry.observeBatch(plan.deliveries.length);
+        session.outbox.offer(plan.deliveries, window.fromSeq, window.toSeq);
+      }
     }
   }
 }
