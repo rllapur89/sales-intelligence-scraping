@@ -24,11 +24,11 @@ One record, `{ version: 1, savedAt, lastSeq, leads }`, in IndexedDB (database
 
 ## Limits
 
-| Limit | Value | Where |
-| --- | --- | --- |
-| Size cap | the `snapshotMaxLeads` highest-score leads (20,000) | `environment*.ts`, `capLeads` |
-| Max age | 7 days (`snapshotMaxAgeMs`); older snapshots are ignored and deleted | `isSnapshotUsable` |
-| Format | other `version`, bad shape or corrupt data are ignored and deleted | `isSnapshotUsable` |
+| Limit    | Value                                                                                 | Where                          |
+| -------- | ------------------------------------------------------------------------------------- | ------------------------------ |
+| Size cap | the `snapshotMaxLeads` highest-score leads (20,000)                                   | `environment*.ts`, `capLeads`  |
+| Max age  | 7 days (`snapshotMaxAgeMs`); older snapshots are ignored and deleted                  | `isSnapshotUsable`             |
+| Format   | other `version`, bad shape or corrupt data are ignored and deleted                    | `isSnapshotUsable`             |
 | Per user | cleared when the session ends (logout, failed token refresh) or another user signs in | `provideSnapshotCacheClearing` |
 
 A cached snapshot can be stale, and when the leads exceed the cap only the best-scoring ones are
