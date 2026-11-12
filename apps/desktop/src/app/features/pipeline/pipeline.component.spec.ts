@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideMockStore } from '@ngrx/store/testing';
+import { MockStore, provideMockStore } from '@ngrx/store/testing';
 import { CrmDataSource } from '../../core/data/crm.data-source';
 import { selectFilteredLeads } from '../../core/store/leads/leads.selectors';
 import { makeLead } from '../../../testing/factories';
@@ -13,6 +13,9 @@ describe('PipelineComponent assignee badge', () => {
     makeLead({ id: 'free', assigneeId: null, company: { name: 'Free Inc' } }),
     makeLead({ id: 'legacy', company: { name: 'Legacy Inc' } }),
   ];
+
+  /** Overridden selectors are module singletons: reset them so other specs see the real ones. */
+  afterEach(() => TestBed.inject(MockStore).resetSelectors());
 
   async function render(): Promise<HTMLElement> {
     await TestBed.configureTestingModule({
