@@ -1,0 +1,23 @@
+{
+  "name": "@leads/loadtest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Socket.IO load test: many authenticated clients plus a synthetic publisher",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/run.js"
+  },
+  "dependencies": {
+    "@leads/db": "*",
+    "@leads/shared": "*",
+    "bcryptjs": "^3.0.2",
+    "ioredis": "^5.4.0",
+    "socket.io-client": "^4.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.19",
+    "vitest": "^4.0.8"
+  }
+}
