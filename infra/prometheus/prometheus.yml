@@ -2,8 +2,14 @@ global:
   scrape_interval: 5s
 
 scrape_configs:
-  # The API exposes /metrics from phase 5. It runs on the host in dev.
+  # The API exposes /metrics (no /api prefix). It runs on the host in dev.
   - job_name: api
     metrics_path: /metrics
     static_configs:
       - targets: ['host.docker.internal:3000']
+
+  # The workers process exposes its own /metrics (WORKERS_METRICS_PORT, default 3100).
+  - job_name: workers
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:3100']
