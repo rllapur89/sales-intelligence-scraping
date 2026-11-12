@@ -1,287 +1,352 @@
 import {
-  Component, ChangeDetectionStrategy, inject, computed
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  WritableSignal,
+  computed,
+  inject,
+  signal,
 } from '@angular/core';
-import { Store } from '@ngrx/store';
-import { SOURCE_KEYS } from '@leads/shared';
-import { ChartPoint } from '../../core/models/metrics.model';
-import { DecimalPipe } from '@angular/common';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { selectAllJobs } from '../../core/store/scraping/scraping.selectors';
-import { selectAllLeads, selectIndustryCounts } from '../../core/store/leads/leads.selectors';
-import { downloadCsv, leadsToCsv } from '../../core/util/csv';
+import { Observable, Subscription } from 'rxjs';
+import type { BreakdownDto, FunnelDto, ScoreTrendDto, SignalMixDto } from '@leads/shared';
+import { AnalyticsDataSource } from '../../core/data/analytics.data-source';
+import {
+  ReportId,
+  ReportTable,
+  breakdownTable,
+  funnelTable,
+  scoreTrendTable,
+  signalsTable,
+} from '../../core/analytics/report-tables';
+import {
+  ExportFormat,
+  downloadText,
+  exportFilename,
+  reportToCsv,
+  reportToJson,
+} from '../../core/util/export';
+import { BarChartComponent } from '../../shared/components/charts/bar-chart.component';
+import { FunnelChartComponent } from '../../shared/components/charts/funnel-chart.component';
+import { HorizontalBarChartComponent } from '../../shared/components/charts/horizontal-bar-chart.component';
+import { LineChartComponent } from '../../shared/components/charts/line-chart.component';
+import { ReportCardComponent } from './report-card.component';
+import {
+  DEFAULT_RANGE,
+  LOADING,
+  RANGE_OPTIONS,
+  RangeDays,
+  ReportState,
+  describeError,
+  isBreakdownEmpty,
+  isFunnelEmpty,
+  isSignalMixEmpty,
+  isTrendEmpty,
+} from './report-state';
 
-const DAY_MS = 24 * 3600 * 1000;
+function dataOf<T>(state: ReportState<T>): T | null {
+  return state.status === 'ready' ? state.data : null;
+}
 
-const SOURCE_ICONS: Record<string, string> = {
-  greenhouse: '🌱', lever: '🧭', 'hn-hiring': '📰', remoteok: '🏝️',
-  github: '🐙', 'sec-edgar': '🏛️', website: '🌐',
-};
+function messageOf<T>(state: ReportState<T>): string {
+  return state.status === 'error' ? state.message : '';
+}
 
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [DecimalPipe],
+  imports: [
+    ReportCardComponent,
+    FunnelChartComponent,
+    HorizontalBarChartComponent,
+    BarChartComponent,
+    LineChartComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="p-6 space-y-6 max-w-[1400px] mx-auto">
-
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-xl font-bold text-white">Reports & Analytics</h1>
-          <p class="text-sm text-slate-400 mt-0.5">Computed from the leads and jobs currently loaded</p>
+          <p class="text-sm text-slate-400 mt-0.5">
+            Funnel, sources, industries and signals of all leads. The date range applies to the
+            score trend.
+          </p>
         </div>
-        <button (click)="exportCsv()"
-                class="flex items-center gap-2 px-4 py-2 border border-slate-700 hover:border-slate-600 text-slate-300 text-sm rounded-lg transition-colors">
-          📤 Export CSV
-        </button>
+        <div
+          role="group"
+          aria-label="Date range"
+          class="flex rounded-lg border border-slate-700 overflow-hidden"
+        >
+          @for (option of ranges; track option) {
+            <button
+              type="button"
+              class="px-3 py-1.5 text-sm transition-colors"
+              [class]="
+                days() === option
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              "
+              [attr.aria-pressed]="days() === option"
+              (click)="setDays(option)"
+            >
+              {{ option }} days
+            </button>
+          }
+        </div>
       </div>
 
-      <!-- Top metrics -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        @for (metric of summaryMetrics(); track metric.label) {
-          <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <div class="text-2xl font-bold font-mono text-white">{{ metric.value }}</div>
-            <div class="text-xs text-slate-400 mt-0.5">{{ metric.label }}</div>
-          </div>
-        }
-      </div>
-
-      <!-- Charts row 1 -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <app-report-card
+          title="Pipeline funnel"
+          [status]="funnel().status"
+          [empty]="funnelEmpty()"
+          [errorMessage]="funnelError()"
+          [table]="tables().funnel"
+          (retry)="retry('funnel')"
+          (exportCsv)="export('funnel', 'csv')"
+          (exportJson)="export('funnel', 'json')"
+        >
+          <app-funnel-chart
+            [steps]="funnelSteps()"
+            ariaLabel="Pipeline funnel: leads reaching each stage"
+          />
+        </app-report-card>
 
-        <!-- Line chart: leads by day -->
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
-          <h2 class="text-sm font-semibold text-white mb-4">Leads Updated — Last 30 Days</h2>
-          <div class="relative h-48">
-            <svg viewBox="0 0 300 100" class="w-full h-full" preserveAspectRatio="none">
-              <!-- Grid lines -->
-              @for (line of [0, 25, 50, 75, 100]; track line) {
-                <line x1="0" [attr.y1]="100 - line" x2="300" [attr.y2]="100 - line"
-                      stroke="#1e293b" stroke-width="0.5" />
-              }
-              <!-- Area fill -->
-              <path [attr.d]="lineAreaPath()" fill="url(#lineGrad)" opacity="0.4" />
-              <!-- Line -->
-              <path [attr.d]="linePath()" fill="none" stroke="#3b82f6" stroke-width="1.5"
-                    stroke-linejoin="round" stroke-linecap="round" />
-              <!-- Gradient def -->
-              <defs>
-                <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#3b82f6" />
-                  <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div class="absolute bottom-0 left-0 right-0 flex justify-between text-[9px] text-slate-600">
-              @for (label of xAxisLabels(); track $index) {
-                <span>{{ label }}</span>
-              }
-            </div>
-          </div>
-        </div>
+        <app-report-card
+          title="Leads by source"
+          [status]="bySource().status"
+          [empty]="bySourceEmpty()"
+          [errorMessage]="bySourceError()"
+          [table]="tables().bySource"
+          (retry)="retry('by-source')"
+          (exportCsv)="export('by-source', 'csv')"
+          (exportJson)="export('by-source', 'json')"
+        >
+          <app-horizontal-bar-chart [data]="sourceData()" ariaLabel="Leads by source" />
+        </app-report-card>
 
-        <!-- Horizontal bar: top companies -->
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
-          <h2 class="text-sm font-semibold text-white mb-4">Top Leads by Score</h2>
-          <div class="space-y-2">
-            @for (item of topLeads(); track item.label) {
-              <div class="flex items-center gap-3">
-                <div class="text-xs text-slate-400 w-28 truncate shrink-0">{{ item.label }}</div>
-                <div class="flex-1 h-5 bg-slate-700 rounded overflow-hidden">
-                  <div class="h-full bg-blue-500 rounded transition-all duration-700 flex items-center justify-end pr-2"
-                       [style.width]="item.value + '%'">
-                    <span class="text-[9px] text-white font-bold">{{ item.value }}</span>
-                  </div>
-                </div>
-              </div>
-            }
-          </div>
-        </div>
+        <app-report-card
+          title="Leads by industry"
+          [status]="byIndustry().status"
+          [empty]="byIndustryEmpty()"
+          [errorMessage]="byIndustryError()"
+          [table]="tables().byIndustry"
+          (retry)="retry('by-industry')"
+          (exportCsv)="export('by-industry', 'csv')"
+          (exportJson)="export('by-industry', 'json')"
+        >
+          <app-horizontal-bar-chart [data]="industryData()" ariaLabel="Leads by industry" />
+        </app-report-card>
+
+        <app-report-card
+          title="Signal mix"
+          [status]="signals().status"
+          [empty]="signalsEmpty()"
+          [errorMessage]="signalsError()"
+          [table]="tables().signals"
+          (retry)="retry('signals')"
+          (exportCsv)="export('signals', 'csv')"
+          (exportJson)="export('signals', 'json')"
+        >
+          <app-bar-chart [data]="signalData()" ariaLabel="Signals per type" />
+        </app-report-card>
       </div>
 
-      <!-- Charts row 2 -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        <!-- Donut: industry distribution -->
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
-          <h2 class="text-sm font-semibold text-white mb-4">Industry Distribution</h2>
-          <div class="flex flex-col items-center gap-4">
-            <svg viewBox="0 0 120 120" class="w-36 h-36">
-              @for (seg of donutSegments(); track $index) {
-                <circle cx="60" cy="60" r="45"
-                        fill="none"
-                        [attr.stroke]="colors[$index % colors.length]"
-                        stroke-width="12"
-                        [attr.stroke-dasharray]="seg.dash + ' ' + seg.gap"
-                        [attr.stroke-dashoffset]="seg.offset"
-                        class="transition-all duration-700" />
-              }
-              <text x="60" y="65" text-anchor="middle" fill="white" font-size="14" font-weight="bold">
-                {{ industryChart().length }}
-              </text>
-            </svg>
-            <div class="w-full space-y-1.5">
-              @for (item of industryChart().slice(0, 6); track item.label) {
-                <div class="flex items-center gap-2 text-xs">
-                  <div class="w-2.5 h-2.5 rounded-sm shrink-0" [style.background]="colors[$index % colors.length]"></div>
-                  <span class="text-slate-400 flex-1 truncate">{{ item.label }}</span>
-                  <span class="text-slate-500 font-mono">{{ item.value }}</span>
-                </div>
-              }
-            </div>
+      <app-report-card
+        [title]="'Score trend — last ' + days() + ' days'"
+        [status]="trend().status"
+        [empty]="trendEmpty()"
+        [errorMessage]="trendError()"
+        [table]="tables().trend"
+        (retry)="retry('score-trend')"
+        (exportCsv)="export('score-trend', 'csv')"
+        (exportJson)="export('score-trend', 'json')"
+      >
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <h3 class="text-xs text-slate-400 mb-2">New leads per day</h3>
+            <app-bar-chart [data]="newLeadsData()" ariaLabel="New leads per day" />
+          </div>
+          <div>
+            <h3 class="text-xs text-slate-400 mb-2">Average score per day</h3>
+            <app-line-chart [data]="avgScoreData()" ariaLabel="Average lead score per day" />
           </div>
         </div>
-
-        <!-- Scraping source performance -->
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 lg:col-span-2">
-          <h2 class="text-sm font-semibold text-white mb-4">Scraping Source Performance</h2>
-          <div class="overflow-x-auto">
-            <table class="w-full text-xs">
-              <thead>
-                <tr class="text-slate-500 border-b border-slate-700">
-                  <th class="text-left py-2 pr-4">Source</th>
-                  <th class="text-right py-2 pr-4">Jobs</th>
-                  <th class="text-right py-2 pr-4">Items</th>
-                  <th class="text-right py-2 pr-4">Success</th>
-                  <th class="text-right py-2">Avg/Job</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of sourceStats(); track row.source) {
-                  <tr class="border-b border-slate-800 hover:bg-slate-700/30">
-                    <td class="py-2.5 pr-4">
-                      <div class="flex items-center gap-2">
-                        <span>{{ row.icon }}</span>
-                        <span class="text-slate-300">{{ row.source }}</span>
-                      </div>
-                    </td>
-                    <td class="text-right py-2.5 pr-4 text-slate-400 font-mono">{{ row.jobs }}</td>
-                    <td class="text-right py-2.5 pr-4 text-slate-300 font-mono font-bold">{{ row.items | number }}</td>
-                    <td class="text-right py-2.5 pr-4">
-                      <span class="font-mono" [class]="row.successRate >= 80 ? 'text-emerald-400' : 'text-yellow-400'">
-                        {{ row.successRate }}%
-                      </span>
-                    </td>
-                    <td class="text-right py-2.5 text-slate-500 font-mono">{{ row.avgPerJob | number }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      </app-report-card>
     </div>
   `,
 })
 export class ReportsComponent {
-  private store = inject(Store);
+  private readonly source = inject(AnalyticsDataSource);
+  private readonly subscriptions = new Map<ReportId, Subscription>();
 
-  private readonly leads = toSignal(this.store.select(selectAllLeads), { initialValue: [] });
-  private readonly jobs = toSignal(this.store.select(selectAllJobs), { initialValue: [] });
-  readonly industryChart = toSignal(this.store.select(selectIndustryCounts), { initialValue: [] as ChartPoint[] });
+  readonly ranges = RANGE_OPTIONS;
+  readonly days = signal<RangeDays>(DEFAULT_RANGE);
 
-  readonly colors = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#84cc16','#f97316'];
+  readonly funnel = signal<ReportState<FunnelDto>>(LOADING);
+  readonly bySource = signal<ReportState<BreakdownDto>>(LOADING);
+  readonly byIndustry = signal<ReportState<BreakdownDto>>(LOADING);
+  readonly signals = signal<ReportState<SignalMixDto>>(LOADING);
+  readonly trend = signal<ReportState<ScoreTrendDto>>(LOADING);
 
-  readonly summaryMetrics = computed(() => {
-    const leads = this.leads();
-    const jobs = this.jobs();
-    const completed = jobs.filter(j => j.status === 'completed').length;
-    const failed = jobs.filter(j => j.status === 'failed').length;
-    const avg = leads.length ? Math.round(leads.reduce((s, l) => s + l.score, 0) / leads.length) : 0;
-    const rate = completed + failed ? Math.round((completed / (completed + failed)) * 100) : 100;
-    return [
-      { label: 'Leads Loaded', value: leads.length.toLocaleString() },
-      { label: 'Jobs Completed', value: String(completed) },
-      { label: 'Avg Score', value: String(avg) },
-      { label: 'Success Rate', value: `${rate}%` },
-    ];
+  readonly funnelEmpty = computed(() => {
+    const d = dataOf(this.funnel());
+    return d !== null && isFunnelEmpty(d);
+  });
+  readonly bySourceEmpty = computed(() => {
+    const d = dataOf(this.bySource());
+    return d !== null && isBreakdownEmpty(d);
+  });
+  readonly byIndustryEmpty = computed(() => {
+    const d = dataOf(this.byIndustry());
+    return d !== null && isBreakdownEmpty(d);
+  });
+  readonly signalsEmpty = computed(() => {
+    const d = dataOf(this.signals());
+    return d !== null && isSignalMixEmpty(d);
+  });
+  readonly trendEmpty = computed(() => {
+    const d = dataOf(this.trend());
+    return d !== null && isTrendEmpty(d);
   });
 
-  /** Jobs, items and success rate per source, from the loaded jobs. */
-  readonly sourceStats = computed(() =>
-    SOURCE_KEYS.map(source => {
-      const jobs = this.jobs().filter(j => j.source === source);
-      const completed = jobs.filter(j => j.status === 'completed').length;
-      const failed = jobs.filter(j => j.status === 'failed').length;
-      const items = jobs.reduce((s, j) => s + j.leadsFound, 0);
-      return {
-        source,
-        icon: SOURCE_ICONS[source] ?? '🔍',
-        jobs: jobs.length,
-        items,
-        successRate: completed + failed ? Math.round((completed / (completed + failed)) * 100) : 100,
-        avgPerJob: jobs.length ? Math.round(items / jobs.length) : 0,
-      };
-    }).filter(row => row.jobs > 0)
+  readonly funnelError = computed(() => messageOf(this.funnel()));
+  readonly bySourceError = computed(() => messageOf(this.bySource()));
+  readonly byIndustryError = computed(() => messageOf(this.byIndustry()));
+  readonly signalsError = computed(() => messageOf(this.signals()));
+  readonly trendError = computed(() => messageOf(this.trend()));
+
+  /** Each table is the visible fallback of its chart and the input of the export. */
+  readonly tables = computed(() => {
+    const funnel = dataOf(this.funnel());
+    const bySource = dataOf(this.bySource());
+    const byIndustry = dataOf(this.byIndustry());
+    const signals = dataOf(this.signals());
+    const trend = dataOf(this.trend());
+    return {
+      funnel: funnel && funnelTable(funnel),
+      bySource: bySource && breakdownTable('by-source', bySource),
+      byIndustry: byIndustry && breakdownTable('by-industry', byIndustry),
+      signals: signals && signalsTable(signals),
+      trend: trend && scoreTrendTable(trend),
+    };
+  });
+
+  readonly funnelSteps = computed(() =>
+    (dataOf(this.funnel())?.stages ?? []).map((s, i) => ({
+      label: s.stage,
+      count: s.count,
+      conversion: i === 0 ? null : s.conversionFromPrevious,
+    })),
+  );
+  readonly sourceData = computed(() => this.breakdownData(dataOf(this.bySource())));
+  readonly industryData = computed(() => this.breakdownData(dataOf(this.byIndustry())));
+  readonly signalData = computed(() =>
+    (dataOf(this.signals())?.items ?? []).map((i) => ({ label: i.type, value: i.count })),
+  );
+  readonly newLeadsData = computed(() =>
+    (dataOf(this.trend())?.points ?? []).map((p) => ({
+      label: p.date.slice(5),
+      value: p.newLeads,
+    })),
+  );
+  readonly avgScoreData = computed(() =>
+    (dataOf(this.trend())?.points ?? []).map((p) => ({
+      label: p.date.slice(5),
+      value: p.avgScore,
+    })),
   );
 
-  /** Leads updated per day over the last 30 days (oldest first). */
-  readonly dailyChart = computed<ChartPoint[]>(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const first = start.getTime() - 29 * DAY_MS;
-    const buckets = new Array<number>(30).fill(0);
-    for (const lead of this.leads()) {
-      const idx = Math.floor((new Date(lead.updatedAt).getTime() - first) / DAY_MS);
-      if (idx >= 0 && idx < 30) buckets[idx]++;
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.subscriptions.forEach((s) => s.unsubscribe()));
+    this.loadAll();
+  }
+
+  setDays(days: RangeDays): void {
+    if (days === this.days()) return;
+    this.days.set(days);
+    this.load('score-trend');
+  }
+
+  retry(id: ReportId): void {
+    this.load(id);
+  }
+
+  /** Exports the report that is currently shown; does nothing while it is loading or failed. */
+  export(id: ReportId, format: ExportFormat, now: Date = new Date()): void {
+    const table = this.tableOf(id);
+    if (!table || table.rows.length === 0) return;
+    const text =
+      format === 'csv'
+        ? reportToCsv(table)
+        : reportToJson(table, now, id === 'score-trend' ? this.days() : undefined);
+    this.save(exportFilename(table, format, now), text, format);
+  }
+
+  /** Browser download; a separate method so tests can replace it. */
+  save(filename: string, text: string, format: ExportFormat): void {
+    downloadText(filename, text, format);
+  }
+
+  private loadAll(): void {
+    for (const id of ['funnel', 'by-source', 'by-industry', 'signals', 'score-trend'] as const) {
+      this.load(id);
     }
-    return buckets.map((value, i) => ({
-      label: new Date(first + i * DAY_MS).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
-      value,
+  }
+
+  private load(id: ReportId): void {
+    switch (id) {
+      case 'funnel':
+        return this.run(id, this.source.funnel(), this.funnel);
+      case 'by-source':
+        return this.run(id, this.source.bySource(), this.bySource);
+      case 'by-industry':
+        return this.run(id, this.source.byIndustry(), this.byIndustry);
+      case 'signals':
+        return this.run(id, this.source.signals(), this.signals);
+      case 'score-trend':
+        return this.run(id, this.source.scoreTrend(this.days()), this.trend);
+    }
+  }
+
+  /** Replaces any in-flight request of the same report, so a slow old range cannot overwrite a new one. */
+  private run<T>(
+    id: ReportId,
+    request: Observable<T>,
+    target: WritableSignal<ReportState<T>>,
+  ): void {
+    this.subscriptions.get(id)?.unsubscribe();
+    target.set(LOADING);
+    this.subscriptions.set(
+      id,
+      request.subscribe({
+        next: (data) => target.set({ status: 'ready', data }),
+        error: (error) => target.set({ status: 'error', message: describeError(error) }),
+      }),
+    );
+  }
+
+  private tableOf(id: ReportId): ReportTable | null {
+    const t = this.tables();
+    switch (id) {
+      case 'funnel':
+        return t.funnel;
+      case 'by-source':
+        return t.bySource;
+      case 'by-industry':
+        return t.byIndustry;
+      case 'signals':
+        return t.signals;
+      case 'score-trend':
+        return t.trend;
+    }
+  }
+
+  private breakdownData(dto: BreakdownDto | null) {
+    return (dto?.items ?? []).map((i) => ({
+      label: i.label,
+      value: i.count,
+      detail: `avg score ${i.avgScore}`,
     }));
-  });
-
-  readonly topLeads = computed<ChartPoint[]>(() =>
-    [...this.leads()]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 8)
-      .map(l => ({ label: l.company.name, value: l.score }))
-  );
-
-  readonly maxDaily = computed(() =>
-    Math.max(...this.dailyChart().map(p => p.value), 1)
-  );
-
-  readonly xAxisLabels = computed(() => {
-    const data = this.dailyChart();
-    return [data[0]?.label, data[7]?.label, data[14]?.label, data[21]?.label, data[29]?.label].filter(Boolean);
-  });
-
-  linePath(): string {
-    const data = this.dailyChart();
-    if (!data.length) return '';
-    const max = this.maxDaily();
-    const w = 300;
-    const h = 100;
-    return data.map((p, i) => {
-      const x = (i / (data.length - 1)) * w;
-      const y = h - (p.value / max) * (h - 10);
-      return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
-    }).join(' ');
-  }
-
-  lineAreaPath(): string {
-    const line = this.linePath();
-    const data = this.dailyChart();
-    if (!line || !data.length) return '';
-    const lastX = 300;
-    return `${line} L ${lastX} 100 L 0 100 Z`;
-  }
-
-  readonly donutSegments = computed(() => {
-    const data = this.industryChart().slice(0, 7);
-    const total = data.reduce((s, p) => s + p.value, 0) || 1;
-    const circ = 2 * Math.PI * 45;
-    let offset = circ / 4;
-    return data.map(p => {
-      const dash = (p.value / total) * circ;
-      const seg = { dash, gap: circ - dash, offset };
-      offset -= dash;
-      return seg;
-    });
-  });
-
-  exportCsv(): void {
-    downloadCsv(`salesintel-leads-${Date.now()}.csv`, leadsToCsv(this.leads()));
   }
 }
