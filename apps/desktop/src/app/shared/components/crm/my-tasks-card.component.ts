@@ -11,7 +11,7 @@ import { errorMessage } from '../../../core/util/errors';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section
-      class="bg-slate-900 border border-slate-800 rounded-xl p-4"
+      class="bg-slate-800 border border-slate-700 rounded-xl p-5"
       aria-labelledby="my-tasks-heading"
       [attr.aria-busy]="loading()"
       data-testid="my-tasks"
