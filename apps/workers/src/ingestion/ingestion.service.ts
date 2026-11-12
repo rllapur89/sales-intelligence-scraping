@@ -6,13 +6,11 @@ import {
   type SourceKey as DbSourceKey,
 } from '@leads/db';
 import {
+  fromDbSignalType as fromDbSignal,
   fromDbSourceKey,
   toDbSourceKey,
-  type CompanyDto,
-  type CompanySize,
-  type LeadDto,
+  toLeadDto,
   type LeadUpsertedEvent,
-  type PipelineStage,
   type RawScrapeResult,
   type SignalType,
 } from '@leads/shared';
@@ -46,55 +44,11 @@ export interface IngestSummary {
 
 const toDbSignal = (t: SignalType): DbSignalType =>
   t.toUpperCase().replace(/-/g, '_') as DbSignalType;
-const fromDbSignal = (t: string): SignalType => t.toLowerCase().replace(/_/g, '-') as SignalType;
 
 function payloadKind(payload: Prisma.JsonValue): string | null {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null;
   const kind = payload['kind'];
   return typeof kind === 'string' ? kind : null;
-}
-
-export function toLeadDto(
-  lead: {
-    id: string;
-    score: number;
-    stage: string;
-    signalTypes: string[];
-    signalCount: number;
-    seq: bigint;
-    updatedAt: Date;
-  },
-  company: {
-    id: string;
-    domain: string;
-    name: string;
-    industry: string | null;
-    region: string | null;
-    size: string | null;
-    description: string | null;
-    techHints: string[];
-  },
-): LeadDto {
-  const companyDto: CompanyDto = {
-    id: company.id,
-    domain: company.domain,
-    name: company.name,
-    industry: company.industry,
-    region: company.region,
-    size: company.size ? (company.size.toLowerCase().replace(/_/g, '-') as CompanySize) : null,
-    description: company.description,
-    techHints: company.techHints,
-  };
-  return {
-    id: lead.id,
-    company: companyDto,
-    score: lead.score,
-    stage: lead.stage.toLowerCase() as PipelineStage,
-    signalTypes: lead.signalTypes.map(fromDbSignal),
-    signalCount: lead.signalCount,
-    seq: Number(lead.seq),
-    updatedAt: lead.updatedAt.toISOString(),
-  };
 }
 
 /**
