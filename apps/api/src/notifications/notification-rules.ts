@@ -6,6 +6,7 @@ import {
   type SubscriptionFilter,
 } from '@leads/shared';
 import { matchesAny } from '../realtime/match-filter';
+import type { DispatchPlan } from '../realtime/retraction-planner';
 
 /** Pure notification rules: who qualifies, what is a duplicate, what a retraction may notify. */
 
@@ -73,4 +74,17 @@ export function decideRetractions(
     if (latestType.get(candidate.leadId) === 'new_match') out.push(candidate);
   }
   return out;
+}
+
+/** The notification-relevant part of one session's dispatch plan. */
+export function buildWindowNotifications(
+  plan: Pick<DispatchPlan, 'newMatches' | 'retractions'>,
+  notifyFilters: readonly SubscriptionFilter[],
+): { matches: NotificationCandidate[]; retractions: NotificationCandidate[] } {
+  return {
+    matches: plan.newMatches
+      .filter((entry) => qualifiesForNewMatch(entry.lead, notifyFilters))
+      .map((entry) => toCandidate(entry.lead)),
+    retractions: plan.retractions.map((entry) => toCandidate(entry.lead)),
+  };
 }

@@ -19,11 +19,16 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { REDIS_CONNECTION } from '../queue/queue.module';
 import { TelemetryService } from '../telemetry/telemetry.service';
+import { buildWindowNotifications } from '../notifications/notification-rules';
+import {
+  NotificationsService,
+  type WindowNotifications,
+} from '../notifications/notifications.service';
 import { toSubscriptionFilter } from '../subscriptions/subscriptions.service';
 import { BoundedIdSet, DEFAULT_HELD_LIMIT } from './bounded-id-set';
 import { EventBatcher, type CoalescedWindow } from './coalescer';
 import { SocketOutbox } from './outbox';
-import { planDispatch } from './retraction-planner';
+import { planDispatch, type DispatchPlan } from './retraction-planner';
 import { readPositiveInt, ResyncService } from './resync.service';
 
 /** Minimal view of a connected socket, so the hub does not depend on socket.io types. */
@@ -38,6 +43,8 @@ export interface LiveClient {
 interface Session {
   client: LiveClient;
   filters: SubscriptionFilter[];
+  /** Active subscriptions with `notify` on: drive new-match notifications. */
+  notifyFilters: SubscriptionFilter[];
   outbox: SocketOutbox;
   /** Lead ids this socket was sent and that were not retracted since (bounded, see ADR 0005). */
   held: BoundedIdSet;
@@ -72,6 +79,7 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
     private readonly resyncService: ResyncService,
     private readonly config: ConfigService,
     private readonly telemetry: TelemetryService,
+    private readonly notifications: NotificationsService,
     @Inject(REDIS_CONNECTION) private readonly redis: Redis,
   ) {
     this.heldLimit = readPositiveInt(config.get<string>('GATEWAY_HELD_LIMIT'), DEFAULT_HELD_LIMIT);
@@ -113,6 +121,7 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
     const session: Session = {
       client,
       filters: [],
+      notifyFilters: [],
       outbox: new SocketOutbox({
         isDrained: () => client.isDrained(),
         emit: (batch) => client.emitBatch(batch),
@@ -122,8 +131,9 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
       ready: Promise.resolve(),
     };
     session.ready = this.loadFilters(client.userId).then(
-      (filters) => {
-        session.filters = filters;
+      (loaded) => {
+        session.filters = loaded.filters;
+        session.notifyFilters = loaded.notifyFilters;
       },
       (err: unknown) => this.logger.warn(`Loading subscriptions failed: ${String(err)}`),
     );
@@ -165,22 +175,33 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
     const mine = [...this.sessions.values()].filter((s) => s.client.userId === userId);
     if (mine.length === 0) return;
     try {
-      const filters = await this.loadFilters(userId);
-      for (const session of mine) session.filters = filters;
+      const loaded = await this.loadFilters(userId);
+      for (const session of mine) {
+        session.filters = loaded.filters;
+        session.notifyFilters = loaded.notifyFilters;
+      }
     } catch (err) {
       this.logger.warn(`Refreshing subscriptions failed: ${String(err)}`);
     }
   }
 
-  private async loadFilters(userId: string): Promise<SubscriptionFilter[]> {
+  private async loadFilters(
+    userId: string,
+  ): Promise<{ filters: SubscriptionFilter[]; notifyFilters: SubscriptionFilter[] }> {
     const rows = await this.prisma.subscription.findMany({ where: { userId, active: true } });
-    return rows.map(toSubscriptionFilter);
+    return {
+      filters: rows.map(toSubscriptionFilter),
+      notifyFilters: rows.filter((row) => row.notify).map(toSubscriptionFilter),
+    };
   }
 
   private dispatch(window: CoalescedWindow): void {
     const all = [...window.entries.values()];
+    // One notification batch per user and window, even with several sockets open.
+    const perUser = new Map<string, WindowNotifications>();
     for (const session of this.sessions.values()) {
       const plan = planDispatch(session.held, all, session.filters);
+      this.collectNotifications(perUser, session, plan);
       for (const entry of plan.retractions) session.held.delete(entry.lead.id);
       for (const entry of plan.deliveries) session.held.add(entry.lead.id);
       if (plan.retractions.length > 0) {
@@ -192,6 +213,34 @@ export class LiveHub implements OnModuleInit, OnModuleDestroy {
       if (plan.deliveries.length > 0) {
         this.telemetry.observeBatch(plan.deliveries.length);
         session.outbox.offer(plan.deliveries, window.fromSeq, window.toSeq);
+      }
+    }
+    this.sendNotifications(perUser);
+  }
+
+  private collectNotifications(
+    perUser: Map<string, WindowNotifications>,
+    session: Session,
+    plan: DispatchPlan,
+  ): void {
+    const wanted = buildWindowNotifications(plan, session.notifyFilters);
+    if (wanted.matches.length === 0 && wanted.retractions.length === 0) return;
+    const entry = perUser.get(session.client.userId);
+    if (!entry) {
+      perUser.set(session.client.userId, wanted);
+      return;
+    }
+    entry.matches.push(...wanted.matches);
+    entry.retractions.push(...wanted.retractions);
+  }
+
+  /** Fire and forget: notifications must never delay or break live delivery. */
+  private sendNotifications(perUser: Map<string, WindowNotifications>): void {
+    for (const [userId, window] of perUser) {
+      try {
+        this.notifications.handleWindow(userId, window);
+      } catch (err) {
+        this.logger.warn(`Creating notifications failed: ${String(err)}`);
       }
     }
   }

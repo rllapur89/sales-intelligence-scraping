@@ -8,6 +8,7 @@ import {
   type ResyncResponse,
 } from '@leads/shared';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { NotificationsService } from '../notifications/notifications.service';
 import type { TelemetryService } from '../telemetry/telemetry.service';
 import { makeEvent, makeLead } from './fixtures';
 import { LiveHub, type LiveClient } from './live-hub';
@@ -26,7 +27,7 @@ class FakeSubscriber {
   disconnect(): void {}
 }
 
-function subscriptionRow(minScore: number, industries: string[] = []) {
+function subscriptionRow(minScore: number, industries: string[] = [], notify = false) {
   return {
     id: 's',
     userId: 'u1',
@@ -36,7 +37,7 @@ function subscriptionRow(minScore: number, industries: string[] = []) {
     regions: [],
     signalTypes: [],
     minScore,
-    notify: false,
+    notify,
   };
 }
 
@@ -44,6 +45,7 @@ describe('LiveHub retraction', () => {
   const subscriber = new FakeSubscriber();
   const findMany = vi.fn();
   const resyncImpl = vi.fn();
+  const handleWindow = vi.fn();
   let hub: LiveHub;
   let batches: LeadBatch[];
   let retractions: LeadsRetracted[];
@@ -74,6 +76,7 @@ describe('LiveHub retraction', () => {
     drained = true;
     findMany.mockReset();
     resyncImpl.mockReset();
+    handleWindow.mockReset();
     const redis = { duplicate: () => subscriber } as unknown as Redis;
     const config = {
       get: (key: string) => (key === 'GATEWAY_BATCH_WINDOW_MS' ? '50' : undefined),
@@ -88,6 +91,7 @@ describe('LiveHub retraction', () => {
         observeBatch: vi.fn(),
         setSockets: vi.fn(),
       } as unknown as TelemetryService,
+      { handleWindow } as unknown as NotificationsService,
       redis,
     );
     await hub.onModuleInit();
@@ -207,6 +211,80 @@ describe('LiveHub retraction', () => {
     await window();
     expect(retractions).toHaveLength(1);
     expect([...(retractions[0]?.leadIds ?? [])].sort()).toEqual(['a', 'b']);
+  });
+
+  describe('notifications', () => {
+    const notifying = () => [subscriptionRow(0, [], true)];
+
+    it('asks for a new_match notification when a high scoring lead newly matches', async () => {
+      await connect(notifying());
+      publish(1, 'a', { score: 80 });
+      await window();
+      expect(handleWindow).toHaveBeenCalledTimes(1);
+      expect(handleWindow).toHaveBeenCalledWith('u1', {
+        matches: [{ leadId: 'a', title: 'Company a' }],
+        retractions: [],
+      });
+    });
+
+    it('does not notify for a score below 70 or when notify is off', async () => {
+      await connect(notifying());
+      publish(1, 'low', { score: 69 });
+      await window();
+      hub.unregister('sock-1');
+      await connect([subscriptionRow(0, [], false)]);
+      publish(2, 'b', { score: 95 });
+      await window();
+      expect(handleWindow).not.toHaveBeenCalled();
+    });
+
+    it('does not notify again for an update of a lead the socket already holds', async () => {
+      await connect(notifying());
+      publish(1, 'a', { score: 80 });
+      await window();
+      publish(2, 'a', { score: 95 });
+      await window();
+      expect(handleWindow).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks for a retracted notification when a held lead stops matching', async () => {
+      await connect([subscriptionRow(50, [], true)]);
+      publish(1, 'a', { score: 80 });
+      await window();
+      handleWindow.mockClear();
+      publish(2, 'a', { score: 10 });
+      await window();
+      expect(handleWindow).toHaveBeenCalledWith('u1', {
+        matches: [],
+        retractions: [{ leadId: 'a', title: 'Company a' }],
+      });
+    });
+
+    it('makes one call per user and window even with two sockets open', async () => {
+      await connect(notifying());
+      hub.register({ ...client, id: 'sock-2' });
+      await vi.advanceTimersByTimeAsync(0);
+      publish(1, 'a', { score: 80 });
+      await window();
+      expect(handleWindow).toHaveBeenCalledTimes(1);
+    });
+
+    it('never breaks live delivery when the notification call throws', async () => {
+      handleWindow.mockImplementation(() => {
+        throw new Error('boom');
+      });
+      await connect(notifying());
+      publish(1, 'a', { score: 80 });
+      await window();
+      expect(batches.map((b) => b.leads.map((l) => l.id))).toEqual([['a']]);
+    });
+
+    it('does not call the service for a window without anything to notify', async () => {
+      await connect(notifying());
+      publish(1, 'a', { score: 10 });
+      await window();
+      expect(handleWindow).not.toHaveBeenCalled();
+    });
   });
 
   it('stops tracking a socket on unregister', async () => {

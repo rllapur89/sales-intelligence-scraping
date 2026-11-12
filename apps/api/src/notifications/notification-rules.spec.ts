@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NotificationType, SubscriptionFilter } from '@leads/shared';
 import { makeLead } from '../realtime/fixtures';
+import type { CoalescedEntry } from '../realtime/coalescer';
 import {
   dedupeCutoff,
   decideNewMatches,
@@ -8,6 +9,7 @@ import {
   qualifiesForNewMatch,
   shouldNotifyNewMatch,
   toCandidate,
+  buildWindowNotifications,
 } from './notification-rules';
 
 const any: SubscriptionFilter = { industries: [], regions: [], signalTypes: [], minScore: 0 };
@@ -101,5 +103,29 @@ describe('decideRetractions', () => {
 
   it('returns nothing when the user was never notified', () => {
     expect(decideRetractions([c('a')], new Map())).toEqual([]);
+  });
+});
+
+describe('buildWindowNotifications', () => {
+  const entry = (id: string, score: number): CoalescedEntry => ({
+    lead: makeLead(id, { score }),
+    timings: { scrapedAt: 1, ingestedAt: 2 },
+  });
+
+  it('keeps qualifying new matches and every retraction as candidates', () => {
+    const out = buildWindowNotifications(
+      { newMatches: [entry('hot', 90), entry('cold', 40)], retractions: [entry('gone', 5)] },
+      [any],
+    );
+    expect(out).toEqual({ matches: [c('hot')], retractions: [c('gone')] });
+  });
+
+  it('has no matches without notify subscriptions but still lists retractions', () => {
+    const out = buildWindowNotifications(
+      { newMatches: [entry('hot', 90)], retractions: [entry('gone', 5)] },
+      [],
+    );
+    expect(out.matches).toEqual([]);
+    expect(out.retractions).toEqual([c('gone')]);
   });
 });
