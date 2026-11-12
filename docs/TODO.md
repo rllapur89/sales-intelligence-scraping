@@ -31,13 +31,23 @@ must come from local runs of this project.
 - Several API instances behind one Redis were not tested (single instance only).
 - The desktop initial bundle is 500.80 kB, 800 bytes over the 500 kB warning budget in `angular.json`.
 - Postings that disappear from a board are not retired; scores decay by signal age.
-- A lead whose score drops below a subscription's minimum is not retracted from clients that hold it.
 - The offline cache cannot tell that cached data belongs to another user across an app restart (it is
   cleared on logout and on user change within a run).
 - RemoteOK jobs rarely expose a company domain, so that source yields few leads.
 - Hacker News "Who is hiring" is skipped by the owner's decision (terms unclear).
 - Tickers in `apps/workers/config/companies.json` (`secTicker`) are unverified until a run with
   `SEC_EDGAR_USER_AGENT` set; the scraper skips a company whose EDGAR name does not match.
+
+## Runs not done for the analytics, CRM and alerts features
+
+- The `crm` and `notifications` migrations were never applied to a database; apply them on a dev database
+  and compare with `prisma migrate diff`.
+- The analytics raw SQL (`date_trunc` bucketing) and the `bySource` relation filter were only checked
+  against mocks.
+- Retraction and notifications were not tested with several API instances behind one Redis. The 24 h
+  notification dedupe is read-then-insert, so a rare duplicate is possible.
+- The bell, the CRM tabs and the reports page were tested as components, never in a browser or Electron.
+- There is no user-list endpoint, so a lead can only be assigned to yourself or unassigned.
 
 ## Closed in phases 5 and 6
 
@@ -46,4 +56,5 @@ must come from local runs of this project.
 - Offline snapshot cache (`docs/offline-cache.md`), ADRs (`docs/adr/`).
 - `POST /api/jobs` answers 503 for a source with no running worker.
 - One shared `LeadDto` mapper for the API and the workers (`packages/shared/src/lead-mapper.ts`).
+- Lead retraction (`leads:retracted`), see ADR 0005.
 - Integration tests run in CI against Postgres and Redis services (advisory for now).
