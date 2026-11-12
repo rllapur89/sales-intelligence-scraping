@@ -26,6 +26,14 @@ export class CreateSubscriptionDto {
   @IsBoolean()
   active?: boolean;
 
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Notify in-app when a lead newly matches with a score of 70 or more',
+  })
+  @IsOptional()
+  @IsBoolean()
+  notify?: boolean;
+
   @ApiPropertyOptional({ type: [String], description: 'Empty = any' })
   @IsOptional()
   @IsArray()
@@ -68,6 +76,11 @@ export class UpdateSubscriptionDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  notify?: boolean;
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()

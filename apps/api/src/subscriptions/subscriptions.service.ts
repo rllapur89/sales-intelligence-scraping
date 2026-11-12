@@ -16,7 +16,13 @@ export function toSubscriptionFilter(row: Subscription): SubscriptionFilter {
 }
 
 export function toSubscriptionDto(row: Subscription): SubscriptionDto {
-  return { id: row.id, name: row.name, active: row.active, filter: toSubscriptionFilter(row) };
+  return {
+    id: row.id,
+    name: row.name,
+    active: row.active,
+    notify: row.notify,
+    filter: toSubscriptionFilter(row),
+  };
 }
 
 @Injectable()
@@ -40,6 +46,7 @@ export class SubscriptionsService {
         userId,
         name: body.name,
         active: body.active ?? true,
+        notify: body.notify ?? false,
         industries: body.industries ?? [],
         regions: body.regions ?? [],
         signalTypes: (body.signalTypes ?? []).map(toDbSignalType),
@@ -57,6 +64,7 @@ export class SubscriptionsService {
       data: {
         ...(body.name !== undefined && { name: body.name }),
         ...(body.active !== undefined && { active: body.active }),
+        ...(body.notify !== undefined && { notify: body.notify }),
         ...(body.industries !== undefined && { industries: body.industries }),
         ...(body.regions !== undefined && { regions: body.regions }),
         ...(body.signalTypes !== undefined && {

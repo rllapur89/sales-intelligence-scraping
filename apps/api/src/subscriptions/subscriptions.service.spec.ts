@@ -15,6 +15,7 @@ function row(over: Partial<Subscription> = {}): Subscription {
     regions: [],
     signalTypes: [],
     minScore: 0,
+    notify: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...over,
@@ -50,6 +51,7 @@ describe('SubscriptionsService', () => {
         id: 's1',
         name: 'All leads',
         active: true,
+        notify: false,
         filter: { industries: [], regions: [], signalTypes: ['oss-activity'], minScore: 40 },
       },
     ]);
@@ -63,6 +65,7 @@ describe('SubscriptionsService', () => {
         userId: 'u1',
         name: 'X',
         active: true,
+        notify: false,
         industries: [],
         regions: [],
         signalTypes: ['WEBSITE_TECH'],
@@ -70,6 +73,21 @@ describe('SubscriptionsService', () => {
       },
     });
     expect(userChanged).toHaveBeenCalledWith('u1');
+  });
+
+  it('creates with the notify flag when asked and exposes it in the DTO', async () => {
+    sub.create.mockResolvedValue(row({ notify: true }));
+    const out = await service.create('u1', { name: 'X', notify: true });
+    expect(sub.create.mock.calls[0]?.[0].data.notify).toBe(true);
+    expect(out.notify).toBe(true);
+  });
+
+  it('updates notify alone without touching other fields', async () => {
+    sub.findFirst.mockResolvedValue(row());
+    sub.update.mockResolvedValue(row({ notify: true }));
+    const out = await service.update('u1', 's1', { notify: true });
+    expect(sub.update).toHaveBeenCalledWith({ where: { id: 's1' }, data: { notify: true } });
+    expect(out.notify).toBe(true);
   });
 
   it('updates only provided fields after checking ownership', async () => {
