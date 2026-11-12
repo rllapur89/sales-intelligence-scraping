@@ -13,7 +13,8 @@ import {
 export function noteBodyError(raw: string): string | null {
   const body = raw.trim();
   if (body === '') return 'Write something before saving the note.';
-  if (body.length > NOTE_MAX_LENGTH) return `A note can have at most ${NOTE_MAX_LENGTH} characters.`;
+  if (body.length > NOTE_MAX_LENGTH)
+    return `A note can have at most ${NOTE_MAX_LENGTH} characters.`;
   return null;
 }
 
@@ -65,7 +66,7 @@ export interface CrmIdentity {
  */
 export function assigneeInitial(
   assigneeId: string | null | undefined,
-  me: CrmIdentity | null
+  me: CrmIdentity | null,
 ): string | null {
   if (!assigneeId) return null;
   if (me && assigneeId === me.id) return (me.displayName.trim()[0] ?? '?').toUpperCase();

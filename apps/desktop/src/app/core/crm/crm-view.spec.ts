@@ -91,7 +91,7 @@ describe('assignee helpers', () => {
 describe('describeActivity', () => {
   it('describes each activity type', () => {
     expect(describeActivity(activity('stage_changed', { from: 'new', to: 'won' }), 'u1')).toBe(
-      'Stage changed from new to won'
+      'Stage changed from new to won',
     );
     expect(describeActivity(activity('note_added'), 'u1')).toBe('Note added');
     expect(describeActivity(activity('task_created'), 'u1')).toBe('Task created');
@@ -101,14 +101,14 @@ describe('describeActivity', () => {
   it('describes assignments for me, a teammate and unassign', () => {
     expect(describeActivity(activity('assigned', { to: 'u1' }), 'u1')).toBe('Lead assigned to you');
     expect(describeActivity(activity('assigned', { to: 'u2' }), 'u1')).toBe(
-      'Lead assigned to a teammate'
+      'Lead assigned to a teammate',
     );
     expect(describeActivity(activity('assigned', { to: null }), 'u1')).toBe('Lead unassigned');
   });
 
   it('degrades gracefully on unexpected data and unknown types', () => {
     expect(describeActivity(activity('stage_changed', { from: 'x', to: 5 }), 'u1')).toBe(
-      'Stage changed'
+      'Stage changed',
     );
     expect(describeActivity(activity('bogus' as ActivityDto['type']), 'u1')).toBe('Activity');
   });
