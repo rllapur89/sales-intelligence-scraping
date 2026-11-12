@@ -8,6 +8,8 @@ export const LeadsActions = createActionGroup({
   events: {
     'Load Leads': emptyProps(),
     'Load Leads Success': props<{ leads: Lead[] }>(),
+    /** Live mode: the cached snapshot shown while the REST snapshot is still pending. */
+    'Load Leads From Cache': props<{ leads: Lead[]; lastSeq: number; savedAt: number }>(),
     'Load Leads Failure': props<{ error: string }>(),
 
     'Select Lead': props<{ id: string }>(),

@@ -12,6 +12,7 @@ import { LeadsEffects } from './core/store/leads/leads.effects';
 import { ScrapingEffects } from './core/store/scraping/scraping.effects';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { provideDataSources } from './core/data/data-sources.provider';
+import { provideSnapshotCacheClearing } from './core/cache/snapshot-cache.service';
 import { environment } from '../environments/environment';
 
 export const appConfig: ApplicationConfig = {
@@ -25,6 +26,7 @@ export const appConfig: ApplicationConfig = {
       leads: leadsReducer,
       scraping: scrapingReducer,
     }),
+    provideSnapshotCacheClearing(),
     provideEffects([LeadsEffects, ScrapingEffects]),
     provideStoreDevtools({ maxAge: 25, logOnly: !isDevMode() }),
   ],

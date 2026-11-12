@@ -1,18 +1,20 @@
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Store } from '@ngrx/store';
-import { Observable, of } from 'rxjs';
+import { EMPTY, Observable, from, merge, of } from 'rxjs';
 import {
-  map, catchError, switchMap, exhaustMap, mergeMap, filter, tap, debounceTime, withLatestFrom,
+  map, catchError, switchMap, exhaustMap, mergeMap, filter, tap, debounceTime, withLatestFrom, takeUntil,
 } from 'rxjs/operators';
 import { LeadsActions } from './leads.actions';
-import { selectLeadEntities, selectLeadsForExport } from './leads.selectors';
+import { selectAllLeads, selectLastSeq, selectLeadEntities, selectLeadsForExport, selectLeadsState } from './leads.selectors';
 import { LeadsDataSource } from '../../data/leads.data-source';
 import { DATA_MODE, ENVIRONMENT } from '../../config/app-environment';
 import { RealtimeService } from '../../realtime/realtime.service';
 import { sampleAcks } from '../../realtime/latency-sampler';
 import { ToastService } from '../../../shared/services/toast.service';
 import { errorMessage } from '../../util/errors';
+import { AuthService } from '../../auth/auth.service';
+import { SnapshotCache } from '../../cache/snapshot-cache.service';
 import { downloadCsv, leadsToCsv } from '../../util/csv';
 
 /** Emits once after the next paint (setTimeout fallback where rAF does not exist). */
@@ -50,6 +52,8 @@ export class LeadsEffects {
   private toast = inject(ToastService);
   private mode = inject(DATA_MODE);
   private env = inject(ENVIRONMENT);
+  private cache = inject(SnapshotCache);
+  private auth = inject(AuthService);
 
   loadLeads$ = createEffect(() =>
     this.actions$.pipe(
@@ -63,6 +67,66 @@ export class LeadsEffects {
         )
       )
     )
+  );
+
+  /**
+   * Live mode: while the REST snapshot is pending, show the last saved snapshot. It is dropped if
+   * the REST answer (success or failure) arrives first.
+   */
+  hydrateFromCache$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(LeadsActions.loadLeads),
+      filter(() => this.mode === 'live'),
+      switchMap(() =>
+        from(this.cache.load()).pipe(
+          switchMap(snapshot =>
+            snapshot && snapshot.leads.length
+              ? of(
+                  LeadsActions.loadLeadsFromCache({
+                    leads: snapshot.leads,
+                    lastSeq: snapshot.lastSeq,
+                    savedAt: snapshot.savedAt,
+                  })
+                )
+              : EMPTY
+          ),
+          takeUntil(
+            this.actions$.pipe(ofType(LeadsActions.loadLeadsSuccess, LeadsActions.loadLeadsFailure))
+          )
+        )
+      )
+    )
+  );
+
+  /** REST failed but the cache is on screen: keep it and say so. */
+  offlineFallbackToast$ = createEffect(
+    () =>
+      this.actions$.pipe(
+        ofType(LeadsActions.loadLeadsFailure),
+        withLatestFrom(this.store.select(selectLeadsState)),
+        filter(([, state]) => this.mode === 'live' && state.fromCache && state.ids.length > 0),
+        tap(() => this.toast.show('info', 'Offline: showing the last saved data'))
+      ),
+    { dispatch: false }
+  );
+
+  /** Saves right after a snapshot and once live batches settle (debounced). */
+  saveSnapshot$ = createEffect(
+    () =>
+      merge(
+        this.actions$.pipe(ofType(LeadsActions.loadLeadsSuccess)),
+        this.actions$.pipe(
+          ofType(LeadsActions.upsertBatch),
+          debounceTime(this.env.snapshotSaveDebounceMs)
+        )
+      ).pipe(
+        filter(() => this.mode === 'live' && this.auth.isAuthenticated()),
+        withLatestFrom(this.store.select(selectAllLeads), this.store.select(selectLastSeq)),
+        tap(([, leads, lastSeq]) => {
+          void this.cache.save(leads, lastSeq);
+        })
+      ),
+    { dispatch: false }
   );
 
   exportLeads$ = createEffect(() =>

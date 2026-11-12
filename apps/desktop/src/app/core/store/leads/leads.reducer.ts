@@ -15,16 +15,31 @@ export const leadsReducer = createReducer(
     return leadsAdapter.setAll(merged, {
       ...state,
       loading: false,
+      fromCache: false,
       totalCount: merged.length,
       lastUpdated: new Date(),
       lastSeq: Math.max(state.lastSeq, maxSeq(merged)),
     });
   }),
 
+  on(LeadsActions.loadLeadsFromCache, (state, { leads, lastSeq, savedAt }) => {
+    // Never overwrite data that is already there (REST snapshot or live batches won the race).
+    if (state.ids.length > 0 || !leads.length) return state;
+    return leadsAdapter.setAll(leads, {
+      ...state,
+      loading: false,
+      fromCache: true,
+      totalCount: leads.length,
+      lastUpdated: new Date(savedAt),
+      lastSeq: Math.max(state.lastSeq, lastSeq, maxSeq(leads)),
+    });
+  }),
+
+  // With cached data on screen a failed snapshot is not an error state: the effect shows a toast.
   on(LeadsActions.loadLeadsFailure, (state, { error }) => ({
     ...state,
     loading: false,
-    error,
+    error: state.fromCache && state.ids.length > 0 ? null : error,
   })),
 
   on(LeadsActions.selectLead, (state, { id }) => ({
