@@ -29,3 +29,51 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Runs against real Postgres and Redis. Advisory until it has been green on GitHub Actions.
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: leads
+          POSTGRES_PASSWORD: leads
+          POSTGRES_DB: leads
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U leads -d leads"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://leads:leads@localhost:5432/leads?schema=integration
+      REDIS_URL: redis://localhost:6379
+      INTEGRATION_TESTS: '1'
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:libs
+      - name: Apply migrations to the integration schema
+        run: npx prisma migrate deploy --schema packages/db/prisma/schema.prisma
+      - name: Workers integration tests
+        run: npm run test:integration -w @leads/workers
+      - name: API integration tests
+        run: npx vitest run src/integration
+        working-directory: apps/api
